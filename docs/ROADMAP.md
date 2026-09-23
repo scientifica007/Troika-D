@@ -22,6 +22,12 @@
 - [x] USB microphone live-audio stability validated
 - [x] built-in microphone timing stability validated
 - [x] V4L2 capture-capability filtering
+- [x] clean source-level EOS finalization
+- [x] bounded finalization timeout
+- [x] explicit Wayland Portal/PipeWire lifecycle cleanup
+- [x] robust MP4 index updates for interrupted-stop resilience
+- [x] finalize active recording before application-window exit
+- [x] stop/finalization field validation on Wayland
 
 ## Milestone B — Capture completeness and field hardening
 
@@ -30,7 +36,7 @@
 - [ ] X11 interactive window picker
 - [ ] X11 interactive region picker
 - [ ] Wayland region preview/crop workflow
-- [ ] robust pause/resume and EOS finalization
+- [ ] pause/resume field validation
 - [ ] non-blocking startup/error handling
 - [ ] countdown
 - [ ] configurable webcam size/position

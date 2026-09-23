@@ -66,7 +66,32 @@ Selecting /dev/video1 fails with:
 
 GStreamer reports V4L2 capabilities 0x4a00000. This confirms that the original device discovery was too broad because it listed every /dev/video* node rather than only capture-capable V4L2 nodes.
 
-The next patch queries VIDIOC_QUERYCAP and filters known non-capture nodes before they reach the UI.
+The following patch queries VIDIOC_QUERYCAP and filters known non-capture nodes before they reach the UI.
+
+## Cycle 3 — stop/finalization and portal lifecycle
+
+The pre-fix test exposed an important shutdown defect:
+
+- stopping could leave the Wayland ScreenCast session active;
+- GNOME's orange screen-sharing stop control could interrupt the pipeline before MP4 finalization;
+- an interrupted MP4 showed a checkerboard/unreadable result in VLC;
+- the desktop session developed visual corruption and required a desktop-session restart to recover.
+
+The finalization/portal-lifecycle patch changed the stop path to:
+
+- send EOS to named live sources;
+- wait for mux finalization with a bounded timeout;
+- explicitly close the XDG portal session;
+- explicitly close the PipeWire remote file descriptor;
+- observe portal Session::Closed when GNOME stops screen sharing externally;
+- use robust MP4 moov updates during recording;
+- finalize an active recording before application-window exit.
+
+### Re-test after the finalization fix
+
+PASS.
+
+The user repeated the recording scenario after updating to the fixed build and reported that the entire stop/finalization workflow completed successfully. The previous stuck screen-sharing/session behavior and desktop corruption did not recur in this test.
 
 ## Current field verdict
 
@@ -75,11 +100,15 @@ Validated on the tested Wayland machine:
 - full-screen recording: PASS
 - H.264/x264 output: PASS
 - save/finalize path: PASS
+- clean in-app stop/finalization: PASS
+- Wayland portal lifecycle cleanup: PASS
 - external microphone audio continuity: PASS
 - microphone hot-plug refresh: PASS
 - built-in microphone timing continuity: PASS
 - webcam overlay using /dev/video0: PASS
 - simultaneous screen + microphone + webcam: PASS
+- V4L2 non-capture-node filtering: implemented; /dev/video1 issue removed from normal UI path
+- application/window shutdown no longer intentionally force-cuts an active recording
 
 The user reported being very satisfied with performance and judged it better than Kazam on this machine. This is a user-reported comparative observation, not a cross-machine benchmark.
 
