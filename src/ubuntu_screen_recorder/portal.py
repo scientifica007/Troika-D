@@ -1,7 +1,7 @@
 import os
 import shutil
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 from urllib.parse import unquote, urlparse
 
 import gi
@@ -13,6 +13,7 @@ from gi.repository import Gio, GLib
 BUS_NAME = "org.freedesktop.portal.Desktop"
 OBJECT_PATH = "/org/freedesktop/portal/desktop"
 REQUEST_IFACE = "org.freedesktop.portal.Request"
+SESSION_IFACE = "org.freedesktop.portal.Session"
 SCREENSHOT_IFACE = "org.freedesktop.portal.Screenshot"
 SCREENCAST_IFACE = "org.freedesktop.portal.ScreenCast"
 
@@ -33,12 +34,20 @@ class PortalClient:
         sender = self.bus.get_unique_name().lstrip(":").replace(".", "_")
         return f"/org/freedesktop/portal/desktop/request/{sender}/{token}"
 
-    def _request(self, interface: str, method: str, parameters: GLib.Variant, token: str) -> Dict[str, Any]:
+    def _request(
+        self,
+        interface: str,
+        method: str,
+        parameters: GLib.Variant,
+        token: str,
+    ) -> Dict[str, Any]:
         loop = GLib.MainLoop()
         response: Dict[str, Any] = {}
         request_path = self._request_path(token)
 
-        def on_response(_conn, _sender, _path, _iface, _signal, params, _user_data=None):
+        def on_response(
+            _conn, _sender, _path, _iface, _signal, params, _user_data=None
+        ):
             code, results = params.unpack()
             response["code"] = int(code)
             response["results"] = results
@@ -84,12 +93,16 @@ class PortalClient:
 
         if response.get("code") != 0:
             raise PortalError(
-                f"Portal request {method} was cancelled or failed (code={response.get('code')})"
+                f"Portal request {method} was cancelled or failed "
+                f"(code={response.get('code')})"
             )
         return response.get("results", {})
 
     def screenshot(self, target: int, destination_dir: Path) -> Path:
-        token = f"shot_{os.getpid()}_{GLib.get_monotonic_time()}".replace("-", "_")
+        token = (
+            f"shot_{os.getpid()}_{GLib.get_monotonic_time()}"
+            .replace("-", "_")
+        )
         options = {
             "handle_token": GLib.Variant("s", token),
             "interactive": GLib.Variant("b", True),
@@ -118,8 +131,14 @@ class PortalClient:
     def create_screencast(
         self, source_types: int = 3, cursor_mode: int = 2
     ) -> Tuple[str, int, int, Optional[int]]:
-        create_token = f"create_{os.getpid()}_{GLib.get_monotonic_time()}".replace("-", "_")
-        session_token = f"session_{os.getpid()}_{GLib.get_monotonic_time()}".replace("-", "_")
+        create_token = (
+            f"create_{os.getpid()}_{GLib.get_monotonic_time()}"
+            .replace("-", "_")
+        )
+        session_token = (
+            f"session_{os.getpid()}_{GLib.get_monotonic_time()}"
+            .replace("-", "_")
+        )
         create_options = {
             "handle_token": GLib.Variant("s", create_token),
             "session_handle_token": GLib.Variant("s", session_token),
@@ -134,7 +153,10 @@ class PortalClient:
         if not session_handle:
             raise PortalError("ScreenCast portal returned no session handle")
 
-        select_token = f"select_{os.getpid()}_{GLib.get_monotonic_time()}".replace("-", "_")
+        select_token = (
+            f"select_{os.getpid()}_{GLib.get_monotonic_time()}"
+            .replace("-", "_")
+        )
         select_options = {
             "handle_token": GLib.Variant("s", select_token),
             "types": GLib.Variant("u", source_types),
@@ -148,12 +170,17 @@ class PortalClient:
             select_token,
         )
 
-        start_token = f"start_{os.getpid()}_{GLib.get_monotonic_time()}".replace("-", "_")
+        start_token = (
+            f"start_{os.getpid()}_{GLib.get_monotonic_time()}"
+            .replace("-", "_")
+        )
         start_options = {"handle_token": GLib.Variant("s", start_token)}
         started = self._request(
             SCREENCAST_IFACE,
             "Start",
-            GLib.Variant("(osa{sv})", (session_handle, "", start_options)),
+            GLib.Variant(
+                "(osa{sv})", (session_handle, "", start_options)
+            ),
             start_token,
         )
         streams = _unwrap(started.get("streams")) or []
@@ -165,8 +192,12 @@ class PortalClient:
         props = _unwrap(props) or {}
 
         serial_value = props.get("pipewire-serial")
-        serial_value = _unwrap(serial_value) if serial_value is not None else None
-        pipewire_serial = int(serial_value) if serial_value is not None else None
+        serial_value = (
+            _unwrap(serial_value) if serial_value is not None else None
+        )
+        pipewire_serial = (
+            int(serial_value) if serial_value is not None else None
+        )
 
         fd = self._open_pipewire_remote(session_handle)
         return session_handle, fd, node_id, pipewire_serial
@@ -188,6 +219,36 @@ class PortalClient:
         index = result.unpack()[0]
         return out_fds.get(index)
 
+    def watch_session_closed(
+        self,
+        session_handle: str,
+        callback: Callable[[], None],
+    ) -> int:
+        def on_closed(
+            _conn,
+            _sender,
+            _path,
+            _iface,
+            _signal,
+            _params,
+            _user_data=None,
+        ):
+            callback()
+
+        return self.bus.signal_subscribe(
+            BUS_NAME,
+            SESSION_IFACE,
+            "Closed",
+            session_handle,
+            None,
+            Gio.DBusSignalFlags.NONE,
+            on_closed,
+        )
+
+    def unwatch_session(self, subscription_id: int) -> None:
+        if subscription_id:
+            self.bus.signal_unsubscribe(subscription_id)
+
     def close_session(self, session_handle: Optional[str]) -> None:
         if not session_handle:
             return
@@ -195,7 +256,7 @@ class PortalClient:
             self.bus.call_sync(
                 BUS_NAME,
                 session_handle,
-                "org.freedesktop.portal.Session",
+                SESSION_IFACE,
                 "Close",
                 None,
                 None,
