@@ -27,7 +27,10 @@ class QualityProfile:
 
 
 QUALITY_PROFILES = {
-    "economy": QualityProfile("economy", "Economy", 75, 1800, "ultrafast"),
+    # Resolution scaling is not yet implemented safely for dynamic
+    # Wayland streams, so Economy currently reduces encoder cost and
+    # bitrate without pretending to resize the captured frame.
+    "economy": QualityProfile("economy", "Economy", 100, 1800, "ultrafast"),
     "balanced": QualityProfile("balanced", "Balanced", 100, 4500, "veryfast"),
     "high": QualityProfile("high", "High", 100, 8000, "fast"),
 }
