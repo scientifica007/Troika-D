@@ -16,6 +16,7 @@ from gi.repository import Gdk, GdkPixbuf, GLib, Gtk
 from .geometry import normalized_crop_from_selection
 from .models import CaptureSource, QUALITY_PROFILES, RecordingConfig, RecordingMode
 from .portal import PortalClient, PortalError
+from .portal_policy import portal_request_was_cancelled
 from .pipeline import PortalStream
 from .recorder import Recorder
 from .system_probe import (
@@ -611,7 +612,13 @@ class MainWindow(Gtk.ApplicationWindow):
             self.paused = False
             self.pause_btn.set_label("Pause")
         except Exception as exc:
-            self._show_error(str(exc))
+            if (
+                isinstance(exc, PortalError)
+                and portal_request_was_cancelled(exc.code)
+            ):
+                self.set_status("Screen selection cancelled")
+            else:
+                self._show_error(str(exc))
         self._sync_ui()
 
     def _recording_output_path(
@@ -690,7 +697,10 @@ class MainWindow(Gtk.ApplicationWindow):
                 self.recorder.cancel_prepared_capture()
             self.show_all()
             self.present()
-            if isinstance(exc, PortalError) and exc.code == 1:
+            if (
+                isinstance(exc, PortalError)
+                and portal_request_was_cancelled(exc.code)
+            ):
                 self.set_status("Screen selection cancelled")
             else:
                 self._show_error(str(exc))
