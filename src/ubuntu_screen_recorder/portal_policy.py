@@ -29,3 +29,14 @@ def screenshot_result_is_app_managed(version: int) -> bool:
     by the application.
     """
     return version >= 3
+
+
+def portal_request_was_cancelled(code: int) -> bool:
+    """Return whether a portal response code represents user cancellation.
+
+    XDG Desktop Portal response code 1 means the request was cancelled by
+    the user. This is a normal control-flow outcome, not an application
+    failure, so callers should return to Ready without showing an error
+    dialog.
+    """
+    return code == 1
