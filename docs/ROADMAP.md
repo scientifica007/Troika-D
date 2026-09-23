@@ -57,7 +57,7 @@ This baseline is a recovery point for the known-good implementation validated on
 
 ### B1 — Validate existing capabilities before new implementation
 
-- [ ] audio-only: built-in microphone
+- [x] audio-only: built-in microphone
 - [x] audio-only: external USB microphone
 - [x] microphone + system-audio mixing
 - [x] pause/resume: video only
@@ -133,6 +133,7 @@ Validated in real use:
 - screenshot storage owned by the system under `~/Pictures/Screenshots`.
 - clean selected-area crop output.
 - source-level EOS finalization in successful runs.
+- audio-only recording with the built-in microphone (functional pass; input-noise source still to be isolated).
 
 Known non-blocking defects/limitations remain documented rather than erased:
 
