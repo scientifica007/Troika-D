@@ -38,6 +38,8 @@ class Recorder:
         self.portal_closed_subscription = 0
         self.stop_timeout_id = 0
         self.stopping = False
+        self.active_config = None
+        self.active_config: Optional[RecordingConfig] = None
 
     @property
     def active(self) -> bool:
@@ -143,6 +145,7 @@ class Recorder:
                 "GStreamer failed to start the recording pipeline"
             )
 
+        self.active_config = config
         self.status_cb(f"Recording — {plan.encoder}")
 
     def pause(self) -> None:
@@ -211,9 +214,21 @@ class Recorder:
             }
         except Exception:
             return
+        config = self.active_config
+        context = ""
+        if config is not None:
+            context = (
+                f" source={config.source.value}"
+                f" quality={config.quality.key}"
+                f" fps={config.fps}"
+                f" mic={int(config.include_microphone)}"
+                f" system_audio={int(config.include_system_audio)}"
+                f" webcam={int(config.include_camera)}"
+            )
         print(
             "Video timing stats "
-            f"[{reason}]: "
+            f"[{reason}]:"
+            f"{context} "
             f"in={values['in']} "
             f"out={values['out']} "
             f"drop={values['drop']} "
