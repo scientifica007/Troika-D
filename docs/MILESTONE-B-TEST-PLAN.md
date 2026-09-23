@@ -830,3 +830,42 @@ All B1 validations that are executable on the current portal-v2 Wayland test mac
 The portal-v3 source-specific screenshot target check remains unavailable on this machine and is therefore not a field failure.
 
 Next work should proceed only on a separate improvement/development branch, preserving the protected field-tested baseline.
+
+
+## Field follow-up — 2026-09-23, built-in microphone gain correction
+
+Direct ALSA inspection found the built-in ALC270 capture path configured with excessive gain:
+
+```text
+Capture = 31/31 = 100% = +30.00 dB
+Internal Mic Boost = 3/3 = 100% = +36.00 dB
+```
+
+A direct hardware recording reproduced severe clipping/noise outside the application stack.
+
+The mixer was then corrected to:
+
+```text
+Capture = 16/31 ≈ 52% = +7.50 dB
+Internal Mic Boost = 0/3 = 0.00 dB
+```
+
+After this correction:
+
+- direct `arecord -D default` recording became substantially clearer;
+- Ubuntu Screen Recorder recording with the built-in microphone also became good;
+- no recorder capture-pipeline change was required.
+
+Application re-test:
+
+```text
+Wayland portal stream: fd=26, node-id=81, position=(0, 0), size=(1366, 768)
+EOS request: source-pads=[screen_src:1,mic_src:1] pipeline-fallback=0 accepted=1
+Video timing stats [eos]: source=screen quality=balanced fps=30 mic=1 system_audio=0 webcam=0 in=31 out=257 drop=5 duplicate=231
+```
+
+Decision:
+
+- built-in microphone functionality and practical audio quality are accepted after correcting the system mixer configuration;
+- the earlier noise is attributed to excessive ALSA/HDA capture gain, not Ubuntu Screen Recorder;
+- B1 is complete for all capabilities executable on this test machine.
