@@ -1,11 +1,20 @@
+import fcntl
 import glob
 import json
 import os
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
+
+
+VIDIOC_QUERYCAP = 0x80685600
+V4L2_CAP_VIDEO_CAPTURE = 0x00000001
+V4L2_CAP_VIDEO_CAPTURE_MPLANE = 0x00001000
+V4L2_CAP_DEVICE_CAPS = 0x80000000
+V4L2_CAPABILITY_STRUCT_SIZE = 104
 
 
 @dataclass(frozen=True)
@@ -137,9 +146,49 @@ def default_monitor_source(sources: List[AudioSource]) -> Optional[str]:
     return None
 
 
+def _is_video_capture_caps(capabilities: int, device_caps: int) -> bool:
+    effective = (
+        device_caps
+        if capabilities & V4L2_CAP_DEVICE_CAPS
+        else capabilities
+    )
+    return bool(
+        effective
+        & (V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_VIDEO_CAPTURE_MPLANE)
+    )
+
+
+def _is_capture_device(path: str) -> Optional[bool]:
+    """Return True/False when V4L2 capabilities can be queried, else None.
+
+    Querying VIDIOC_QUERYCAP does not start the camera stream or turn on its LED.
+    Unknown devices remain visible for compatibility; known non-capture nodes
+    (for example metadata-only UVC nodes) are filtered out.
+    """
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+    except OSError:
+        return None
+
+    try:
+        buffer = bytearray(V4L2_CAPABILITY_STRUCT_SIZE)
+        fcntl.ioctl(fd, VIDIOC_QUERYCAP, buffer, True)
+        capabilities = int.from_bytes(buffer[84:88], sys.byteorder)
+        device_caps = int.from_bytes(buffer[88:92], sys.byteorder)
+        return _is_video_capture_caps(capabilities, device_caps)
+    except OSError:
+        return None
+    finally:
+        os.close(fd)
+
+
 def list_cameras() -> List[CameraDevice]:
     result: List[CameraDevice] = []
     for path in sorted(glob.glob("/dev/video*")):
+        is_capture = _is_capture_device(path)
+        if is_capture is False:
+            continue
+
         base = Path(path).name
         name_file = Path("/sys/class/video4linux") / base / "name"
         try:

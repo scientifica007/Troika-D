@@ -7,37 +7,86 @@ Environment observed by the application:
 - GStreamer H.264/x264 path: working
 - Built-in display selection: working
 - Internal microphone: detected
-- External USB PnP microphone: detected when connected before startup
-- HP Webcam-101: detected; multiple /dev/video* nodes exposed by the device
+- External CM108 USB microphone: detected
+- HP Webcam-101: detected
+- HP Webcam-101 exposes both /dev/video0 and /dev/video1
 
-## Results
+## Cycle 1 — foundation
 
 1. Full-screen video without audio: PASS.
-2. Built-in microphone + video: records, but audio has frequent cuts/distortion.
+2. Built-in microphone + video: audio initially showed frequent cuts/distortion.
 3. External USB microphone:
-   - not discovered if inserted after application startup in the original build;
-   - discovered if inserted before application startup;
-   - clearer than the built-in microphone;
-   - intermittent cuts still observed.
-4. Webcam overlay + external microphone: PASS in one run, with clearer external-mic audio.
-5. Later external-microphone run: frequent audio cuts observed again.
+   - was not discovered if inserted after application startup in the original build;
+   - was discovered if inserted before startup;
+   - sounded clearer than the built-in microphone;
+   - intermittent cuts were observed.
+4. Webcam overlay + external microphone: PASS in one run.
+5. A later external-microphone run again showed frequent cuts.
 
-## Interpretation
+These observations led to the live-audio timing/buffering changes and automatic hot-plug refresh in commit 6cff3cc.
 
-The successful video-only and webcam runs validate the Wayland Portal/PipeWire video path and the basic compositor path.
+## Cycle 2 — after live-audio and hot-plug hardening
 
-Audio cuts occur with more than one microphone and are intermittent, so they are not treated as a microphone-quality problem alone. The next build changes the capture timing/buffering strategy:
+### Hot-plug
 
-- microphone sources no longer force BaseSrc do-timestamp;
-- Pulse sources do not become the pipeline master clock;
-- audio source clock slaving uses resampling instead of hard pointer skew corrections;
-- Pulse ring buffer is enlarged;
-- raw audio is normalized to 48 kHz;
-- queues are governed by time rather than byte count;
-- a single audio source bypasses audiomixer;
-- two-source mixing receives 100 ms of live-input tolerance;
-- raw video capture uses a time-based leaky queue so an overloaded encoder drops stale video frames instead of blocking audio.
+PASS.
 
-Hot-plug discovery is also added by polling devices every two seconds while idle and refreshing again immediately before recording.
+The application was opened with only the built-in audio source visible. After the external microphone was connected while the application was already running, the list refreshed automatically and exposed:
 
-These changes are hypotheses to be validated by a second field-test cycle. Audio stability is not marked PASS until the recordings are listened to.
+- Built-in Audio Analog Stereo
+- CM108 Audio Controller Mono
+
+The UI also switched from raw Pulse source identifiers to human-readable device descriptions.
+
+### External USB microphone
+
+PASS.
+
+The CM108 external microphone recorded clear audio without the previous dropouts.
+
+### Built-in microphone
+
+TIMING PASS / ACOUSTIC QUALITY DEVICE-LIMITED.
+
+The built-in microphone no longer demonstrated the previously observed intermittent dropout pattern. Its remaining noisy/distorted character corresponds to strong laptop-fan pickup reported during the test, so this is treated as an acoustic/input-quality issue rather than a recorder timing failure.
+
+### Webcam overlay
+
+PASS on /dev/video0.
+
+The HP Webcam-101 capture path on /dev/video0 records correctly alongside screen video and microphone audio.
+
+### /dev/video1
+
+NON-BLOCKING DEVICE-DISCOVERY ISSUE.
+
+Selecting /dev/video1 fails with:
+
+    Device '/dev/video1' is not a capture device.
+
+GStreamer reports V4L2 capabilities 0x4a00000. This confirms that the original device discovery was too broad because it listed every /dev/video* node rather than only capture-capable V4L2 nodes.
+
+The next patch queries VIDIOC_QUERYCAP and filters known non-capture nodes before they reach the UI.
+
+## Current field verdict
+
+Validated on the tested Wayland machine:
+
+- full-screen recording: PASS
+- H.264/x264 output: PASS
+- save/finalize path: PASS
+- external microphone audio continuity: PASS
+- microphone hot-plug refresh: PASS
+- built-in microphone timing continuity: PASS
+- webcam overlay using /dev/video0: PASS
+- simultaneous screen + microphone + webcam: PASS
+
+The user reported being very satisfied with performance and judged it better than Kazam on this machine. This is a user-reported comparative observation, not a cross-machine benchmark.
+
+Still unvalidated:
+
+- microphone + system-audio simultaneous mixing
+- audio-only mode after the latest timing changes
+- window/area capture completeness
+- X11 behavior
+- performance across older/newer hardware classes

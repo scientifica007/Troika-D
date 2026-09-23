@@ -10,21 +10,23 @@
 - [x] Screenshot Portal helper
 - [x] ScreenCast Portal helper
 - [x] GStreamer pipeline builder
-- [x] audio-only mode
+- [x] audio-only mode foundation
 - [x] webcam overlay foundation
 - [x] unit tests for model/pipeline decisions
 - [x] Wayland compatibility for modern pipewire-serial and legacy portal node IDs
 - [x] clean GStreamer NULL-state teardown after startup failure
-- [x] first real Wayland full-screen recording
-- [x] first real Wayland webcam-overlay recording
+- [x] real Wayland full-screen recording
+- [x] real Wayland webcam-overlay recording
 - [x] automatic idle-time microphone/camera hot-plug refresh
+- [x] human-readable Pulse/PipeWire device names
+- [x] USB microphone live-audio stability validated
+- [x] built-in microphone timing stability validated
+- [x] V4L2 capture-capability filtering
 
 ## Milestone B — Capture completeness and field hardening
 
-- [ ] validate audio-stability changes on internal microphone
-- [ ] validate audio-stability changes on USB microphone
 - [ ] validate microphone + system-audio mixing
-- [ ] validate audio-only path
+- [ ] validate audio-only path after live-audio changes
 - [ ] X11 interactive window picker
 - [ ] X11 interactive region picker
 - [ ] Wayland region preview/crop workflow
