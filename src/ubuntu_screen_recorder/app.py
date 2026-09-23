@@ -33,6 +33,14 @@ class MainWindow(Gtk.ApplicationWindow):
         self.cameras = list_cameras()
         self.recorder = Recorder(self.cap, self.set_status)
         self.portal = PortalClient() if self.cap.has_portal else None
+        if self.portal is not None:
+            (
+                self.screenshot_portal_version,
+                self.screenshot_available_targets,
+            ) = self.portal.screenshot_capabilities()
+        else:
+            self.screenshot_portal_version = 0
+            self.screenshot_available_targets = 0
         self.paused = False
         self._closing_after_recording = False
 
@@ -154,12 +162,28 @@ class MainWindow(Gtk.ApplicationWindow):
         preferred_id: Optional[str] = None,
     ) -> None:
         if mode == "screenshot":
-            items = (
-                ("screen", "Full screen"),
-                ("window", "Window"),
-                ("area", "Area"),
-                ("active-window", "Active window"),
-            )
+            if (
+                self.screenshot_portal_version >= 3
+                and self.screenshot_available_targets
+            ):
+                candidates = (
+                    ("screen", "Full screen", 1),
+                    ("window", "Window", 2),
+                    ("area", "Area", 4),
+                    ("active-window", "Active window", 8),
+                )
+                items = tuple(
+                    (key, label)
+                    for key, label, bit in candidates
+                    if self.screenshot_available_targets & bit
+                )
+            else:
+                items = (
+                    (
+                        "screen",
+                        "Interactive screenshot (system)",
+                    ),
+                )
         elif mode == "video":
             # ScreenCast portal exposes monitor/window/virtual,
             # not a distinct active-window source. Do not present
@@ -307,6 +331,13 @@ class MainWindow(Gtk.ApplicationWindow):
             and bool(self.cameras)
         )
         self.pointer.set_sensitive(not recording and is_video)
+        legacy_screenshot = (
+            is_shot
+            and self.screenshot_portal_version < 3
+        )
+        self.output.set_sensitive(
+            not recording and not legacy_screenshot
+        )
         self.pause_btn.set_sensitive(recording)
 
         if recording:
@@ -423,6 +454,10 @@ class MainWindow(Gtk.ApplicationWindow):
         elif path is not None:
             self.set_status(
                 f"Screenshot saved: {path}"
+            )
+        else:
+            self.set_status(
+                "Screenshot handled by the system tool"
             )
         return False
 
