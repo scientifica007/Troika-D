@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from .models import RecordingConfig, RecordingMode
+from .models import CaptureSource, RecordingConfig, RecordingMode
 
 
 AUDIO_BUFFER_US = 500_000
@@ -21,6 +21,8 @@ class PortalStream:
     fd: int
     node_id: int
     pipewire_serial: Optional[int] = None
+    position: Optional[Tuple[int, int]] = None
+    size: Optional[Tuple[int, int]] = None
 
 
 @dataclass(frozen=True)
@@ -190,9 +192,24 @@ def build_video_pipeline(
     # A Window-only drop-only/max-rate experiment was reverted after
     # GStreamer 1.x aborted in videorate when PipeWire supplied a buffer
     # without a valid duration (GST_BUFFER_DURATION_IS_VALID assertion).
+    area_stage = ""
+    if config.source == CaptureSource.AREA:
+        if config.crop is None:
+            raise ValueError(
+                "Selected-area recording needs a crop rectangle"
+            )
+        # The crop margins are resolved later from the actual negotiated
+        # PipeWire caps. Keep the gate closed until Recorder configures
+        # videocrop, so no full-screen frame can leak into the output.
+        area_stage = (
+            "videocrop name=area_crop ! "
+            "valve name=area_gate drop=true ! "
+        )
+
     video_chain = (
         f"{video_src} ! "
         f"{_queue('video_capture_q', VIDEO_CAPTURE_QUEUE_NS, 'downstream')} ! "
+        f"{area_stage}"
         "videoconvert ! video/x-raw,format=I420 ! "
         "videorate name=video_rate skip-to-first=true ! "
         f"video/x-raw,framerate={config.fps}/1 ! videoscale ! "
