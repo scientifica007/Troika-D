@@ -82,7 +82,7 @@ This baseline is a recovery point for the known-good implementation validated on
 - [x] area recording + webcam
 - [x] area recording + system audio
 - [x] area stop/finalization QA
-- [ ] remove/avoid brief checkerboard-like startup artifact when webcam overlay is enabled
+- [x] remove/avoid brief checkerboard-like startup artifact when webcam overlay is enabled
 
 ### B3 — Complete X11 capture modes
 
@@ -101,6 +101,7 @@ This baseline is a recovery point for the known-good implementation validated on
 - [x] remove misleading Active Window video option on Wayland/ScreenCast path
 - [x] screenshot portal v2 simplified interactive mode after code=2 compatibility fix
 - [x] verify portal-v2 screenshots no longer duplicate into Videos after storage-ownership fix
+- [x] portal selection cancel is treated as normal UX flow for Full Screen and Window
 - [ ] investigate PORTAL-001: transient duplicate cursor after GNOME external screen-share stop
 - [ ] non-blocking startup/error handling
 - [ ] countdown
@@ -121,6 +122,8 @@ Validated in real use:
 - System-audio recording.
 - microphone + system-audio recording.
 - webcam overlay using the working capture node.
+- webcam overlay startup/end without the previous checkerboard artifact in tested Area and Full Screen runs.
+- clean portal cancellation for Full Screen and Window without an error dialog.
 - Area + microphone.
 - Area + system audio.
 - Area + microphone + webcam.
@@ -133,13 +136,12 @@ Validated in real use:
 Known non-blocking defects/limitations remain documented rather than erased:
 
 - Window capture motion can be substantially worse than Full Screen/Area for moving content.
-- a brief checkerboard-like startup frame can appear in recordings that use webcam overlay.
 - GNOME external screen-share stop can temporarily leave a duplicate pointer artifact.
 - some runs can still hit bounded finalization timeout while preserving a playable robust MP4.
 - X11 coverage is not yet validated.
 - portal v3 screenshot target-specific behavior is not available on the current portal-v2 test system.
 
-The baseline branch must remain unchanged. New implementation work should occur on separate development/improvement branches and be accepted only after regression comparison against this baseline.
+The baseline branches must remain unchanged. The newest protected field baseline is `baseline/field-tested-2026-09-23-post-cancel-fix` at merge commit `675572d2216147b230acc70acf8f24c503ef9de1`. New implementation work should occur on separate development/improvement branches and be accepted only after regression comparison against this baseline.
 
 On this specific tested low-resource machine, the user reports the current application as more practical for his workflow than Kazam, Kooha, and OBS. This is a machine-specific field assessment, not a general cross-platform benchmark.
 
