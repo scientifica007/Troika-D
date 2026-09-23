@@ -73,6 +73,7 @@ class AreaSelectionWindow(Gtk.Window):
             | Gdk.EventMask.POINTER_MOTION_MASK
             | Gdk.EventMask.KEY_PRESS_MASK
         )
+        self.connect("realize", self._on_realize)
         self.connect("draw", self._on_draw)
         self.connect("button-press-event", self._on_press)
         self.connect("button-release-event", self._on_release)
@@ -84,6 +85,19 @@ class AreaSelectionWindow(Gtk.Window):
             self.fullscreen_on_monitor(screen, monitor_index)
         except Exception:
             self.fullscreen()
+
+    def _on_realize(self, _widget):
+        # Wayland does not apply a traditional per-window opacity value.
+        # Explicitly mark the native surface as potentially non-opaque so
+        # the compositor honours the alpha channel we paint with Cairo.
+        # Without this, GNOME/Mutter can treat the fullscreen selector as
+        # opaque and transparent pixels appear black.
+        window = self.get_window()
+        if window is not None:
+            try:
+                window.set_opaque_region(None)
+            except (AttributeError, TypeError):
+                pass
 
     def _rectangle(self):
         if self.start_point is None or self.current_point is None:
