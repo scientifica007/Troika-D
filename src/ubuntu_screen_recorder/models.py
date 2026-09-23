@@ -1,7 +1,9 @@
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
+
+from .geometry import NormalizedCrop
 
 
 class RecordingMode(str, Enum):
@@ -50,6 +52,7 @@ class RecordingConfig:
     camera_device: Optional[str] = None
     show_pointer: bool = True
     output_dir: Path = Path.home() / "Videos"
+    crop: Optional[NormalizedCrop] = None
 
     def validate(self) -> None:
         if self.fps not in (15, 30, 60):
