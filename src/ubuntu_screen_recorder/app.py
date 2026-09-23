@@ -57,16 +57,25 @@ class AreaSelectionWindow(Gtk.Window):
         self.set_can_focus(True)
         self.set_accept_focus(True)
 
-        self.add_events(
+        # Render the captured preview on a dedicated DrawingArea instead of
+        # directly on the toplevel Gtk.Window. On the tested Ubuntu/GNOME
+        # stack the window theme could repaint the toplevel after our draw
+        # handler, leaving a fully white selector even though the captured
+        # RGB frame contained real desktop pixels.
+        self.canvas = Gtk.DrawingArea()
+        self.canvas.set_can_focus(True)
+        self.canvas.add_events(
             Gdk.EventMask.BUTTON_PRESS_MASK
             | Gdk.EventMask.BUTTON_RELEASE_MASK
             | Gdk.EventMask.POINTER_MOTION_MASK
-            | Gdk.EventMask.KEY_PRESS_MASK
         )
-        self.connect("draw", self._on_draw)
-        self.connect("button-press-event", self._on_press)
-        self.connect("button-release-event", self._on_release)
-        self.connect("motion-notify-event", self._on_motion)
+        self.canvas.connect("draw", self._on_draw)
+        self.canvas.connect("button-press-event", self._on_press)
+        self.canvas.connect("button-release-event", self._on_release)
+        self.canvas.connect("motion-notify-event", self._on_motion)
+        self.add(self.canvas)
+
+        self.add_events(Gdk.EventMask.KEY_PRESS_MASK)
         self.connect("key-press-event", self._on_key)
         self.connect("delete-event", self._on_delete)
 
@@ -104,8 +113,8 @@ class AreaSelectionWindow(Gtk.Window):
         Gdk.cairo_set_source_pixbuf(cr, pixbuf, 0, 0)
         cr.paint()
 
-    def _on_draw(self, _widget, cr):
-        allocation = self.get_allocation()
+    def _on_draw(self, widget, cr):
+        allocation = widget.get_allocation()
         preview = self._preview_for_allocation(
             allocation.width,
             allocation.height,
@@ -152,14 +161,14 @@ class AreaSelectionWindow(Gtk.Window):
         self.start_point = (event.x, event.y)
         self.current_point = self.start_point
         self.dragging = True
-        self.queue_draw()
+        self.canvas.queue_draw()
         return True
 
     def _on_motion(self, _widget, event):
         if not self.dragging:
             return False
         self.current_point = (event.x, event.y)
-        self.queue_draw()
+        self.canvas.queue_draw()
         return True
 
     def _on_release(self, _widget, event):
@@ -168,7 +177,7 @@ class AreaSelectionWindow(Gtk.Window):
         self.current_point = (event.x, event.y)
         self.dragging = False
         rect = self._rectangle()
-        self.queue_draw()
+        self.canvas.queue_draw()
         if rect is None:
             return True
 
@@ -176,7 +185,7 @@ class AreaSelectionWindow(Gtk.Window):
         if width < self.MIN_SELECTION or height < self.MIN_SELECTION:
             return True
 
-        allocation = self.get_allocation()
+        allocation = self.canvas.get_allocation()
         self._finished = True
         self.hide()
         self.destroy()
@@ -681,7 +690,10 @@ class MainWindow(Gtk.ApplicationWindow):
                 self.recorder.cancel_prepared_capture()
             self.show_all()
             self.present()
-            self._show_error(str(exc))
+            if isinstance(exc, PortalError) and exc.code == 1:
+                self.set_status("Screen selection cancelled")
+            else:
+                self._show_error(str(exc))
             self._sync_ui()
 
     def _show_area_selector(
@@ -713,7 +725,7 @@ class MainWindow(Gtk.ApplicationWindow):
             self._area_selector = selector
             selector.show_all()
             selector.present()
-            selector.grab_focus()
+            selector.canvas.grab_focus()
         except Exception as exc:
             self._area_selecting = False
             self._pending_area_config = None
