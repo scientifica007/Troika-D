@@ -1,7 +1,8 @@
 import unittest
 from pathlib import Path
 
-from ubuntu_screen_recorder.models import RecordingConfig
+from ubuntu_screen_recorder.geometry import NormalizedCrop
+from ubuntu_screen_recorder.models import CaptureSource, RecordingConfig
 from ubuntu_screen_recorder.pipeline import (
     PortalStream,
     ROBUST_MP4_MAX_DURATION_NS,
@@ -174,6 +175,44 @@ class PipelineTests(unittest.TestCase):
             "video/x-raw,framerate=30/1",
             plan.description,
         )
+
+
+    def test_area_pipeline_has_gated_crop_stage(self):
+        config = RecordingConfig(
+            source=CaptureSource.AREA,
+            crop=NormalizedCrop(0.1, 0.1, 0.5, 0.5),
+        )
+        stream = PortalStream(
+            fd=9, node_id=77, pipewire_serial=None
+        )
+        plan = build_video_pipeline(
+            config,
+            Path("/tmp/a.mp4"),
+            "wayland",
+            True,
+            True,
+            stream,
+        )
+        self.assertIn(
+            "videocrop name=area_crop ! "
+            "valve name=area_gate drop=true",
+            plan.description,
+        )
+
+    def test_area_pipeline_rejects_missing_crop(self):
+        config = RecordingConfig(source=CaptureSource.AREA)
+        stream = PortalStream(
+            fd=9, node_id=77, pipewire_serial=None
+        )
+        with self.assertRaises(ValueError):
+            build_video_pipeline(
+                config,
+                Path("/tmp/a.mp4"),
+                "wayland",
+                True,
+                True,
+                stream,
+            )
 
     def test_video_capture_queue_is_time_limited_and_leaky(self):
         config = RecordingConfig()
