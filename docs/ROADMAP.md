@@ -52,9 +52,9 @@ milestone-b/capture-completeness
 - [ ] audio-only: built-in microphone
 - [x] audio-only: external USB microphone
 - [x] microphone + system-audio mixing
-- [ ] pause/resume: video only
+- [x] pause/resume: video only
 - [ ] pause/resume: video + microphone
-- [ ] Wayland window capture
+- [x] Wayland window capture: functional selection/capture; motion-quality hardening remains
 - [ ] screenshot: full screen
 - [ ] screenshot: window
 - [ ] screenshot: selected area
@@ -62,7 +62,7 @@ milestone-b/capture-completeness
 
 ### B2 — Complete Wayland capture modes
 
-- [ ] verify/fix Wayland window capture after B1 test
+- [ ] harden Wayland window motion quality and startup green-frame artifact
 - [ ] Wayland selected-area preview
 - [ ] selected-area rectangle interaction
 - [ ] GStreamer videocrop integration
@@ -79,7 +79,12 @@ milestone-b/capture-completeness
 
 ### B4 — Field hardening / usability
 
-- [ ] investigate PERF-001: choppy recorded motion during YouTube playback at Balanced / 30 FPS
+- [ ] investigate PERF-001: choppy recorded motion; 15 FPS materially better than 30 FPS on tested machine
+- [x] add videorate in/out/drop/duplicate diagnostics
+- [x] add skip-to-first startup timing guard
+- [x] remove unapplied Economy resolution-scaling claim
+- [x] remove misleading Active Window video option on Wayland/ScreenCast path
+- [ ] re-test screenshot portal after capability/fallback + hide-window fix
 - [ ] investigate PORTAL-001: transient duplicate cursor after GNOME external screen-share stop
 - [ ] non-blocking startup/error handling
 - [ ] countdown
