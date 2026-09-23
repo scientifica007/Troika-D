@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from .models import CaptureSource, RecordingConfig, RecordingMode
+from .models import RecordingConfig, RecordingMode
 
 
 AUDIO_BUFFER_US = 500_000
@@ -186,33 +186,16 @@ def build_video_pipeline(
             f"show-pointer={'true' if config.show_pointer else 'false'}"
         )
 
-    if (
-        session_type == "wayland"
-        and config.source == CaptureSource.WINDOW
-    ):
-        # Portal window streams on the tested GNOME/Wayland compositor
-        # arrive with highly variable/bursty timing. Forcing constant
-        # frame rate caused heavy drop+duplicate churn and visible
-        # pauses. Preserve source timestamps and only cap the maximum
-        # output rate; do not synthesize duplicate frames.
-        rate_chain = (
-            "videorate name=video_rate "
-            "skip-to-first=true drop-only=true "
-            f"max-rate={config.fps} ! "
-        )
-    else:
-        # Keep the known-good full-screen CFR path unchanged.
-        rate_chain = (
-            "videorate name=video_rate skip-to-first=true ! "
-            f"video/x-raw,framerate={config.fps}/1 ! "
-        )
-
+    # Use the stable constant-frame-rate path for all capture sources.
+    # A Window-only drop-only/max-rate experiment was reverted after
+    # GStreamer 1.x aborted in videorate when PipeWire supplied a buffer
+    # without a valid duration (GST_BUFFER_DURATION_IS_VALID assertion).
     video_chain = (
         f"{video_src} ! "
         f"{_queue('video_capture_q', VIDEO_CAPTURE_QUEUE_NS, 'downstream')} ! "
         "videoconvert ! video/x-raw,format=I420 ! "
-        f"{rate_chain}"
-        "videoscale ! "
+        "videorate name=video_rate skip-to-first=true ! "
+        f"video/x-raw,framerate={config.fps}/1 ! videoscale ! "
     )
 
     video_mux_queue = _queue("video_mux_q", VIDEO_MUX_QUEUE_NS)
