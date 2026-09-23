@@ -750,10 +750,47 @@ Decision:
 - B1 pause/resume with video + microphone is field-accepted on the tested Wayland machine;
 - no implementation change is required from this test.
 
-## Next controlled validation
+## Field results — 2026-09-23, cycle 12
 
-Before adding another feature, complete the last remaining executable B1 validation on the current machine:
+### Audio-only — built-in microphone
 
-1. Audio-only with the built-in microphone.
+Configuration:
 
-No implementation change is required unless the field result exposes a defect.
+```text
+Mode: Audio only
+Microphone: Built-in Audio Analog Stereo
+System audio: OFF
+```
+
+FUNCTIONAL PASS / INPUT-NOISE QUALITY UNRESOLVED.
+
+Observed:
+
+- audio-only recording starts and records microphone input;
+- Stop requests EOS cleanly from the microphone source;
+- no video portal is involved;
+- the recorded speech is audible;
+- substantial background noise is present;
+- the user cannot yet distinguish whether that noise is the built-in microphone/electrical input noise or acoustic pickup of the computer fan.
+
+Terminal evidence:
+
+```text
+EOS request: source-pads=[mic_src:1] pipeline-fallback=0 accepted=1
+```
+
+The later `^C ... KeyboardInterrupt` occurred when the user manually terminated the still-running application after the recording test; it is not a recording-pipeline failure.
+
+Decision:
+
+- B1 audio-only functionality with the built-in microphone is field-accepted;
+- microphone noise rejection is not part of the B1 continuity criterion and remains a separate input-quality diagnostic;
+- no recorder implementation change is justified until a controlled comparison separates microphone/device noise from ambient fan noise.
+
+## B1 field-validation status
+
+All B1 validations that are executable on the current portal-v2 Wayland test machine are complete.
+
+The portal-v3 source-specific screenshot target check remains unavailable on this machine and is therefore not a field failure.
+
+Next work should proceed only on a separate improvement/development branch, preserving the protected field-tested baseline.
