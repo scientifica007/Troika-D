@@ -145,6 +145,17 @@ class PipelineTests(unittest.TestCase):
             "v4l2src name=camera_src", plan.description
         )
 
+    def test_video_chain_starts_from_first_real_frame(self):
+        config = RecordingConfig()
+        plan = build_video_pipeline(
+            config, Path("/tmp/a.mp4"), "x11", True, True
+        )
+        self.assertIn(
+            "video/x-raw,format=I420 ! "
+            "videorate name=video_rate skip-to-first=true",
+            plan.description,
+        )
+
     def test_video_capture_queue_is_time_limited_and_leaky(self):
         config = RecordingConfig()
         plan = build_video_pipeline(
