@@ -171,6 +171,58 @@ class PipelineTests(unittest.TestCase):
             plan.description,
         )
 
+    def test_wayland_window_drops_rate_before_colour_conversion(self):
+        config = RecordingConfig(
+            source=CaptureSource.WINDOW,
+            fps=15,
+        )
+        stream = PortalStream(
+            fd=9, node_id=77, pipewire_serial=None
+        )
+        plan = build_video_pipeline(
+            config,
+            Path("/tmp/a.mp4"),
+            "wayland",
+            True,
+            True,
+            stream,
+        )
+        rate_index = plan.description.index(
+            "videorate name=video_rate skip-to-first=true"
+        )
+        convert_index = plan.description.index(
+            "videoconvert ! video/x-raw,format=I420"
+        )
+        self.assertLess(rate_index, convert_index)
+        self.assertIn(
+            "video/x-raw,framerate=15/1",
+            plan.description,
+        )
+
+    def test_wayland_screen_keeps_conversion_before_videorate(self):
+        config = RecordingConfig(
+            source=CaptureSource.SCREEN,
+            fps=15,
+        )
+        stream = PortalStream(
+            fd=9, node_id=77, pipewire_serial=None
+        )
+        plan = build_video_pipeline(
+            config,
+            Path("/tmp/a.mp4"),
+            "wayland",
+            True,
+            True,
+            stream,
+        )
+        convert_index = plan.description.index(
+            "videoconvert ! video/x-raw,format=I420"
+        )
+        rate_index = plan.description.index(
+            "videorate name=video_rate skip-to-first=true"
+        )
+        self.assertLess(convert_index, rate_index)
+
     def test_wayland_keeps_constant_framerate_path(self):
         config = RecordingConfig(fps=30)
         stream = PortalStream(

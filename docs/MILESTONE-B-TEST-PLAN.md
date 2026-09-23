@@ -869,3 +869,40 @@ Decision:
 - built-in microphone functionality and practical audio quality are accepted after correcting the system mixer configuration;
 - the earlier noise is attributed to excessive ALSA/HDA capture gain, not Ubuntu Screen Recorder;
 - B1 is complete for all capabilities executable on this test machine.
+
+
+## PERF-001 Window motion experiment — v3
+
+Branch: `improvement/window-motion-quality-v3`
+
+Why v2 was rejected:
+
+- portal Window selection succeeded;
+- the no-videorate/raw-caps design failed before PLAYING;
+- UI reported `GStreamer failed to start the recording pipeline`;
+- therefore raw upstream framerate negotiation without a rate-conversion
+  element is not supported by the tested Window stream.
+
+v3 hypothesis:
+
+The stable pipeline currently performs `videoconvert -> I420 -> videorate`.
+For a motion-heavy Window stream, that converts every incoming compositor
+frame even though many frames are subsequently discarded to reach 15/30 FPS.
+
+For Wayland Window/Active Window only, v3 changes the order to:
+
+`pipewiresrc -> queue -> videorate -> requested FPS -> videoconvert -> I420`
+
+This retains ordinary, field-stable videorate semantics while reducing
+per-frame colour-conversion work before discarded frames.
+
+Full Screen and Area remain byte-for-byte on their previous pipeline order.
+
+Field gate:
+
+1. Window / Balanced / 15 FPS / no audio / no webcam.
+2. Same Brave window and same type of scrolling + YouTube motion used in PERF-001.
+3. If startup and finalization pass, repeat at 30 FPS.
+4. Reject on crash, negotiation failure, green startup corruption, invalid file,
+   or any regression in normal Window capture.
+5. Do not merge until direct field comparison with the protected B1 baseline.
