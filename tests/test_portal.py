@@ -1,6 +1,7 @@
 import unittest
 
 from ubuntu_screen_recorder.portal_policy import (
+    portal_request_was_cancelled,
     screenshot_request_policy,
     screenshot_result_is_app_managed,
 )
@@ -37,6 +38,13 @@ class ScreenshotPolicyTests(unittest.TestCase):
         self.assertTrue(
             screenshot_result_is_app_managed(3)
         )
+
+    def test_portal_response_code_1_is_user_cancellation(self):
+        self.assertTrue(portal_request_was_cancelled(1))
+
+    def test_other_portal_response_codes_are_not_user_cancellation(self):
+        self.assertFalse(portal_request_was_cancelled(0))
+        self.assertFalse(portal_request_was_cancelled(2))
 
     def test_unadvertised_target_uses_interactive_fallback(self):
         targeted, interactive = screenshot_request_policy(
