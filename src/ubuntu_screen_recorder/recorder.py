@@ -1,4 +1,5 @@
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -21,6 +22,14 @@ SOURCE_NAMES = (
     "camera_src",
 )
 FINALIZE_TIMEOUT_SECONDS = 8
+
+
+@dataclass(frozen=True)
+class PreviewFrame:
+    width: int
+    height: int
+    rowstride: int
+    data: bytes
 
 
 class Recorder:
@@ -127,6 +136,115 @@ class Recorder:
         stream = self._open_wayland_stream(config)
         self.prepared_stream = stream
         return stream
+
+    def capture_area_preview(
+        self,
+        stream: PortalStream,
+        timeout_seconds: int = 5,
+    ) -> PreviewFrame:
+        """Grab one RGB frame from the prepared portal stream.
+
+        The preview uses a separate PipeWire remote so the original fd
+        remains untouched for the real recording.
+        """
+        if (
+            self.portal is None
+            or self.portal_session is None
+            or self.prepared_stream is None
+        ):
+            raise RuntimeError(
+                "Area preview requires a prepared Wayland portal session"
+            )
+
+        preview_fd = self.portal.open_pipewire_remote(
+            self.portal_session
+        )
+        selector = (
+            stream.pipewire_serial
+            if stream.pipewire_serial is not None
+            else stream.node_id
+        )
+        pipeline = None
+        try:
+            description = (
+                f"pipewiresrc fd={preview_fd} path={selector} "
+                "do-timestamp=true ! "
+                "queue max-size-buffers=1 leaky=downstream ! "
+                "videoconvert ! video/x-raw,format=RGB ! "
+                "appsink name=preview_sink max-buffers=1 "
+                "drop=true sync=false"
+            )
+            pipeline = Gst.parse_launch(description)
+            sink = pipeline.get_by_name("preview_sink")
+            if sink is None:
+                raise RuntimeError(
+                    "Could not create Area preview sink"
+                )
+
+            result = pipeline.set_state(Gst.State.PLAYING)
+            if result == Gst.StateChangeReturn.FAILURE:
+                raise RuntimeError(
+                    "Could not start Area preview pipeline"
+                )
+
+            sample = sink.emit(
+                "try-pull-sample",
+                timeout_seconds * Gst.SECOND,
+            )
+            if sample is None:
+                raise RuntimeError(
+                    "Timed out while capturing Area preview"
+                )
+
+            caps = sample.get_caps()
+            structure = caps.get_structure(0)
+            ok_width, width = structure.get_int("width")
+            ok_height, height = structure.get_int("height")
+            if not ok_width or not ok_height:
+                raise RuntimeError(
+                    "Area preview returned no video dimensions"
+                )
+
+            buffer = sample.get_buffer()
+            ok, mapped = buffer.map(Gst.MapFlags.READ)
+            if not ok:
+                raise RuntimeError(
+                    "Could not read Area preview frame"
+                )
+            try:
+                data = bytes(mapped.data)
+            finally:
+                buffer.unmap(mapped)
+
+            minimum_stride = width * 3
+            if height <= 0:
+                raise RuntimeError(
+                    "Area preview returned an invalid height"
+                )
+            rowstride = len(data) // height
+            if rowstride < minimum_stride:
+                raise RuntimeError(
+                    "Area preview returned an invalid RGB buffer"
+                )
+
+            print(
+                "Area preview captured: "
+                f"{width}x{height}, rowstride={rowstride}",
+                flush=True,
+            )
+            return PreviewFrame(
+                width=width,
+                height=height,
+                rowstride=rowstride,
+                data=data,
+            )
+        finally:
+            if pipeline is not None:
+                pipeline.set_state(Gst.State.NULL)
+            try:
+                os.close(preview_fd)
+            except OSError:
+                pass
 
     def cancel_prepared_capture(self) -> None:
         if self.pipeline is not None:
