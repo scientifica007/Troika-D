@@ -171,6 +171,56 @@ class PipelineTests(unittest.TestCase):
             plan.description,
         )
 
+    def test_wayland_window_requests_upstream_rate_without_videorate(self):
+        config = RecordingConfig(
+            source=CaptureSource.WINDOW,
+            fps=15,
+        )
+        stream = PortalStream(
+            fd=9, node_id=77, pipewire_serial=None
+        )
+        plan = build_video_pipeline(
+            config,
+            Path("/tmp/a.mp4"),
+            "wayland",
+            True,
+            True,
+            stream,
+        )
+        self.assertIn(
+            "video/x-raw,format=I420,framerate=15/1",
+            plan.description,
+        )
+        self.assertNotIn(
+            "videorate name=video_rate",
+            plan.description,
+        )
+
+    def test_wayland_active_window_uses_same_native_window_path(self):
+        config = RecordingConfig(
+            source=CaptureSource.ACTIVE_WINDOW,
+            fps=30,
+        )
+        stream = PortalStream(
+            fd=9, node_id=77, pipewire_serial=None
+        )
+        plan = build_video_pipeline(
+            config,
+            Path("/tmp/a.mp4"),
+            "wayland",
+            True,
+            True,
+            stream,
+        )
+        self.assertIn(
+            "video/x-raw,format=I420,framerate=30/1",
+            plan.description,
+        )
+        self.assertNotIn(
+            "videorate name=video_rate",
+            plan.description,
+        )
+
     def test_wayland_keeps_constant_framerate_path(self):
         config = RecordingConfig(fps=30)
         stream = PortalStream(
