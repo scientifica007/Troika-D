@@ -18,3 +18,14 @@ def screenshot_request_policy(
     )
     interactive = target in (2, 4) or not targeted
     return targeted, interactive
+
+
+def screenshot_result_is_app_managed(version: int) -> bool:
+    """Whether the app should copy/save the returned screenshot URI.
+
+    Portal v2 delegates the interactive workflow to the system screenshot
+    tool, which already owns persistence. Copying its URI creates duplicate
+    files. Portal v3+ supports app-directed targets/results and may be saved
+    by the application.
+    """
+    return version >= 3
