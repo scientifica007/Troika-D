@@ -65,9 +65,10 @@ milestone-b/capture-completeness
 - [ ] harden Wayland window motion quality (startup green artifact fixed in field test)
 - [x] reject Window drop-only/max-rate experiment after hard GStreamer abort
 - [ ] investigate safer Window timing design without destabilizing the known-stable CFR path
-- [ ] Wayland selected-area preview
-- [ ] selected-area rectangle interaction
-- [ ] GStreamer videocrop integration
+- [x] Wayland selected-area monitor/overlay preparation
+- [x] selected-area rectangle interaction
+- [x] GStreamer videocrop integration
+- [ ] selected-area first field acceptance
 - [ ] area recording + microphone
 - [ ] area recording + webcam
 - [ ] area stop/finalization QA
@@ -88,7 +89,7 @@ milestone-b/capture-completeness
 - [x] remove unapplied Economy resolution-scaling claim
 - [x] remove misleading Active Window video option on Wayland/ScreenCast path
 - [x] screenshot portal v2 simplified interactive mode after code=2 compatibility fix
-- [ ] verify portal-v2 screenshots no longer duplicate into Videos after storage-ownership fix
+- [x] verify portal-v2 screenshots no longer duplicate into Videos after storage-ownership fix
 - [ ] investigate PORTAL-001: transient duplicate cursor after GNOME external screen-share stop
 - [ ] non-blocking startup/error handling
 - [ ] countdown
