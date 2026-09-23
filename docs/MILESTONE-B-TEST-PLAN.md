@@ -869,3 +869,35 @@ Decision:
 - built-in microphone functionality and practical audio quality are accepted after correcting the system mixer configuration;
 - the earlier noise is attributed to excessive ALSA/HDA capture gain, not Ubuntu Screen Recorder;
 - B1 is complete for all capabilities executable on this test machine.
+
+
+## PERF-001 isolated Window motion experiment — v2
+
+Branch: `improvement/window-motion-quality-v2`
+
+Scope:
+
+- Wayland Window and Active Window only.
+- Full Screen and Area retain the protected field-tested CFR path unchanged.
+- Audio, webcam, portal selection, robust MP4 muxing, EOS, and finalization are unchanged.
+
+Hypothesis:
+
+The compositor-provided Window stream has irregular timing. Forcing that stream through
+`videorate ! video/x-raw,framerate=N/1` caused severe drop/duplicate behavior in field
+tests. The rejected drop-only/max-rate variant was unsafe because some PipeWire buffers
+had no valid duration.
+
+This experiment instead requests the configured nominal framerate through upstream caps
+negotiation and removes `videorate` only from the Wayland Window path. The encoder keeps
+the source timestamps it receives.
+
+Field gate:
+
+1. Window / Balanced / 15 FPS / no audio / no webcam: normal scrolling and YouTube motion.
+2. Repeat at 30 FPS.
+3. Confirm Stop/finalization, microphone, and webcam still work in one Window run.
+4. Compare directly with protected baseline `baseline/field-tested-2026-09-23-b1-complete`.
+
+Reject immediately if there is a crash, negotiation failure, startup corruption, invalid
+output, or regression in Full Screen/Area.
