@@ -561,17 +561,6 @@ class Recorder:
         if not pipeline:
             return
         rate = pipeline.get_by_name("video_rate")
-        if rate is None:
-            return
-        try:
-            values = {
-                "in": rate.get_property("in"),
-                "out": rate.get_property("out"),
-                "drop": rate.get_property("drop"),
-                "duplicate": rate.get_property("duplicate"),
-            }
-        except Exception:
-            return
         config = self.active_config
         context = ""
         if config is not None:
@@ -583,6 +572,30 @@ class Recorder:
                 f" system_audio={int(config.include_system_audio)}"
                 f" webcam={int(config.include_camera)}"
             )
+
+        if rate is None:
+            # PERF-001 Window experiment intentionally has no videorate:
+            # upstream caps negotiation requests the nominal rate while
+            # preserving source timestamps. Keep the log explicit rather
+            # than silently omitting timing diagnostics.
+            print(
+                "Video timing stats "
+                f"[{reason}]:"
+                f"{context} "
+                "mode=upstream-native no-videorate=1",
+                flush=True,
+            )
+            return
+
+        try:
+            values = {
+                "in": rate.get_property("in"),
+                "out": rate.get_property("out"),
+                "drop": rate.get_property("drop"),
+                "duplicate": rate.get_property("duplicate"),
+            }
+        except Exception:
+            return
         print(
             "Video timing stats "
             f"[{reason}]:"
