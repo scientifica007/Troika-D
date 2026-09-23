@@ -383,6 +383,10 @@ class PortalClient:
             self.close_session(session_handle)
             raise
 
+    def open_pipewire_remote(self, session_handle: str) -> int:
+        """Open an additional PipeWire remote for an existing session."""
+        return self._open_pipewire_remote(session_handle)
+
     def _open_pipewire_remote(self, session_handle: str) -> int:
         params = GLib.Variant("(oa{sv})", (session_handle, {}))
         result, out_fds = self.bus.call_with_unix_fd_list_sync(
