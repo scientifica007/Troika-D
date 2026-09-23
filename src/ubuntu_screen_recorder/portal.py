@@ -9,7 +9,10 @@ import gi
 gi.require_version("Gio", "2.0")
 from gi.repository import Gio, GLib
 
-from .portal_policy import screenshot_request_policy
+from .portal_policy import (
+    screenshot_request_policy,
+    screenshot_result_is_app_managed,
+)
 
 
 BUS_NAME = "org.freedesktop.portal.Desktop"
@@ -202,15 +205,23 @@ class PortalClient:
                 token,
             )
         except PortalError as exc:
-            # Some backends can still return a usable URI with a
-            # non-zero response after the screenshot was actually
-            # produced. Preserve that result instead of discarding it.
+            if not screenshot_result_is_app_managed(version):
+                # GNOME/Ubuntu Screenshot portal v2 delegates storage to
+                # the system screenshot tool. It may return code=2 or a
+                # usable URI after the system tool has already persisted
+                # the screenshot. In either case, do not copy that URI:
+                # doing so creates duplicate files in the app's Save-to
+                # folder and the system Screenshots folder.
+                if exc.code == 2 or exc.results.get("uri"):
+                    return None
+                raise
+
+            # Portal v3+ may return a usable URI with a non-zero response.
             if exc.results.get("uri"):
                 results = exc.results
             elif targeted:
-                # Compatibility fallback for older/misreporting portal
-                # backends: omit the v3 target key and let the
-                # interactive screenshot UI choose the target.
+                # Compatibility fallback for a v3 backend that advertised
+                # a target but rejected the target-specific request.
                 retry_token = (
                     f"shot_retry_{os.getpid()}_"
                     f"{GLib.get_monotonic_time()}"
@@ -229,16 +240,14 @@ class PortalClient:
                     ),
                     retry_token,
                 )
-            elif version < 3 and exc.code == 2:
-                # GNOME/Ubuntu Screenshot portal v2 can hand control
-                # to the system screenshot UI and then end the portal
-                # request with response code 2 after the screenshot
-                # tool itself completes. There is no target API or
-                # reliable URI in this legacy path, so treat this as
-                # external completion rather than an application error.
-                return None
             else:
                 raise
+
+        if not screenshot_result_is_app_managed(version):
+            # Successful portal-v2 responses can also include a URI, but
+            # Ubuntu has already saved the screenshot. Avoid a second copy.
+            return None
+
         uri = results.get("uri")
         if not uri:
             raise PortalError("Screenshot portal returned no URI")
