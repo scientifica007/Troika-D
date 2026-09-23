@@ -40,6 +40,18 @@ def _unwrap(value):
     return value.unpack() if isinstance(value, GLib.Variant) else value
 
 
+def _pair(value) -> Optional[Tuple[int, int]]:
+    if value is None:
+        return None
+    value = _unwrap(value)
+    if not isinstance(value, (tuple, list)) or len(value) != 2:
+        return None
+    try:
+        return int(_unwrap(value[0])), int(_unwrap(value[1]))
+    except (TypeError, ValueError):
+        return None
+
+
 class PortalClient:
     def __init__(self) -> None:
         self.bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
@@ -264,7 +276,14 @@ class PortalClient:
 
     def create_screencast(
         self, source_types: int = 3, cursor_mode: int = 2
-    ) -> Tuple[str, int, int, Optional[int]]:
+    ) -> Tuple[
+        str,
+        int,
+        int,
+        Optional[int],
+        Optional[Tuple[int, int]],
+        Optional[Tuple[int, int]],
+    ]:
         create_token = (
             f"create_{os.getpid()}_{GLib.get_monotonic_time()}"
             .replace("-", "_")
@@ -333,8 +352,17 @@ class PortalClient:
             int(serial_value) if serial_value is not None else None
         )
 
+        position = _pair(props.get("position"))
+        size = _pair(props.get("size"))
         fd = self._open_pipewire_remote(session_handle)
-        return session_handle, fd, node_id, pipewire_serial
+        return (
+            session_handle,
+            fd,
+            node_id,
+            pipewire_serial,
+            position,
+            size,
+        )
 
     def _open_pipewire_remote(self, session_handle: str) -> int:
         params = GLib.Variant("(oa{sv})", (session_handle, {}))
