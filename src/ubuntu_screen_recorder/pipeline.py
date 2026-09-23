@@ -229,7 +229,8 @@ def build_video_pipeline(
         main_video = (
             screen_branch
             + cam_branch
-            + "compositor name=comp sink_1::xpos=20 "
+            + "compositor name=comp background=black "
+            "start-time-selection=first sink_1::xpos=20 "
             "sink_1::ypos=20 ! videoconvert ! "
             + f"{enc} ! {parser} ! {video_mux_queue} ! mux. "
         )

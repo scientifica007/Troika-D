@@ -590,3 +590,49 @@ Focused next test:
 Video → Area → choose monitor.
 Expected: the selector shows a snapshot of the actual desktop, not a black screen.
 A full recording is not required unless the preview is correct.
+
+
+## Field result — 2026-09-23, cycle 8
+
+### Webcam startup checkerboard fix — Area acceptance
+
+Configuration:
+
+```text
+Mode: Video
+Source: Area
+Quality: Balanced
+Frame rate: 30 FPS
+Microphone: ON — CM108
+System audio: OFF
+Webcam: ON
+```
+
+PASS.
+
+Observed:
+
+- Area monitor selection and preview workflow remained functional.
+- Selected rectangle remained correct.
+- Video recording completed successfully.
+- External CM108 microphone recorded successfully.
+- Webcam overlay recorded successfully.
+- The previous checkerboard artifact did not appear at the beginning of the recorded file.
+- No checkerboard artifact appeared at the end of the recorded file.
+- Clean EOS finalization completed.
+
+Terminal evidence:
+
+```text
+Wayland portal stream: fd=26, node-id=66, position=(0, 0), size=(1366, 768)
+Area preview captured: 1366x768, rowstride=4100, frames=6, selected=1, rgb-range=0..255, mean=120
+Area crop configured: stream=1366x768 left=0 right=2 top=126 bottom=196
+EOS request: source-pads=[screen_src:1,mic_src:1,camera_src:1] pipeline-fallback=0 accepted=1
+Video timing stats [eos]: source=area quality=balanced fps=30 mic=1 system_audio=0 webcam=1 in=666 out=1115 drop=54 duplicate=503
+```
+
+Interpretation:
+
+- The compositor startup policy change removes the visible checkerboard in the tested Area + microphone + webcam path.
+- No regression was observed in Area selection, crop, microphone, webcam, or finalization.
+- Full-screen webcam acceptance remains the final focused check before this improvement is eligible for merge.
