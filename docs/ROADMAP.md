@@ -83,10 +83,12 @@ milestone-b/capture-completeness
 
 - [ ] investigate PERF-001: choppy recorded motion; 15 FPS materially better than 30 FPS on tested machine
 - [x] add videorate in/out/drop/duplicate diagnostics
+- [x] label timing diagnostics with source/quality/FPS/audio/webcam context
 - [x] add skip-to-first startup timing guard
 - [x] remove unapplied Economy resolution-scaling claim
 - [x] remove misleading Active Window video option on Wayland/ScreenCast path
-- [ ] re-test screenshot portal v2 simplified interactive mode after code=2 compatibility fix
+- [x] screenshot portal v2 simplified interactive mode after code=2 compatibility fix
+- [ ] verify portal-v2 screenshots no longer duplicate into Videos after storage-ownership fix
 - [ ] investigate PORTAL-001: transient duplicate cursor after GNOME external screen-share stop
 - [ ] non-blocking startup/error handling
 - [ ] countdown
