@@ -61,7 +61,7 @@ This baseline is a recovery point for the known-good implementation validated on
 - [x] audio-only: external USB microphone
 - [x] microphone + system-audio mixing
 - [x] pause/resume: video only
-- [ ] pause/resume: video + microphone
+- [x] pause/resume: video + microphone
 - [x] Wayland window capture: functional selection/capture; motion-quality hardening remains
 - [x] screenshot: portal v2 interactive system workflow
 - [x] screenshot: recorder hides before system screenshot UI
@@ -128,6 +128,7 @@ Validated in real use:
 - Area + system audio.
 - Area + microphone + webcam.
 - Pause/resume for video-only recording.
+- Pause/resume with external CM108 microphone.
 - Screenshot portal v2 interactive Ubuntu workflow.
 - screenshot storage owned by the system under `~/Pictures/Screenshots`.
 - clean selected-area crop output.
