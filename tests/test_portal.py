@@ -2,6 +2,7 @@ import unittest
 
 from ubuntu_screen_recorder.portal_policy import (
     screenshot_request_policy,
+    screenshot_result_is_app_managed,
 )
 
 
@@ -26,6 +27,16 @@ class ScreenshotPolicyTests(unittest.TestCase):
         )
         self.assertFalse(targeted)
         self.assertTrue(interactive)
+
+    def test_portal_v2_storage_is_system_managed(self):
+        self.assertFalse(
+            screenshot_result_is_app_managed(2)
+        )
+
+    def test_portal_v3_storage_can_be_app_managed(self):
+        self.assertTrue(
+            screenshot_result_is_app_managed(3)
+        )
 
     def test_unadvertised_target_uses_interactive_fallback(self):
         targeted, interactive = screenshot_request_policy(
