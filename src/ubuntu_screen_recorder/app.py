@@ -4,6 +4,11 @@ from typing import Iterable, Optional, Sequence, Tuple
 
 import gi
 
+# Pin both GTK and GDK to the same major version before importing either
+# namespace. On Ubuntu systems that also provide GTK/GDK 4, importing Gdk
+# without an explicit version can load Gdk 4 first, after which Gtk 3 cannot
+# require Gdk 3 and the application aborts during startup.
+gi.require_version("Gdk", "3.0")
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gdk, GLib, Gtk
 
