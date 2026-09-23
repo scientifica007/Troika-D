@@ -330,3 +330,4 @@ class Recorder:
             self.pipewire_fd = None
 
         self.stopping = False
+        self.active_config = None
