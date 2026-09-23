@@ -47,6 +47,14 @@ Development branch:
 milestone-b/capture-completeness
 ```
 
+Field-tested safety snapshot:
+
+```text
+baseline/field-tested-2026-09-23
+```
+
+This baseline is a recovery point for the known-good implementation validated on the current Wayland test machine. Experimental changes must not overwrite or move this baseline.
+
 ### B1 — Validate existing capabilities before new implementation
 
 - [ ] audio-only: built-in microphone
@@ -69,11 +77,12 @@ milestone-b/capture-completeness
 - [x] selected-area rectangle interaction
 - [x] GStreamer videocrop integration
 - [x] reject transparent fullscreen GTK selector after repeated Wayland field failure
-- [ ] selected-area PipeWire-preview selector field acceptance
-- [ ] area recording + microphone
-- [ ] area recording + webcam
+- [x] selected-area PipeWire-preview selector field acceptance
+- [x] area recording + microphone
+- [x] area recording + webcam
 - [x] area recording + system audio
 - [x] area stop/finalization QA
+- [ ] remove/avoid brief checkerboard-like startup artifact when webcam overlay is enabled
 
 ### B3 — Complete X11 capture modes
 
@@ -84,7 +93,7 @@ milestone-b/capture-completeness
 
 ### B4 — Field hardening / usability
 
-- [ ] investigate PERF-001: choppy recorded motion; 15 FPS materially better than 30 FPS on tested machine
+- [ ] investigate PERF-001: choppy recorded motion; 15 FPS materially better than 30 FPS on some tested capture paths
 - [x] add videorate in/out/drop/duplicate diagnostics
 - [x] label timing diagnostics with source/quality/FPS/audio/webcam context
 - [x] add skip-to-first startup timing guard
@@ -98,6 +107,41 @@ milestone-b/capture-completeness
 - [ ] configurable webcam size/position
 - [ ] audio level meters
 - [ ] pause/resume final field validation
+
+### Field-tested baseline policy — 2026-09-23
+
+The current working behavior has been accepted as a known-good baseline on the test machine.
+
+Validated in real use:
+
+- Full Screen recording.
+- Area recording with visible PipeWire-preview area selection.
+- Balanced 15 FPS and 30 FPS recording paths used successfully.
+- External CM108 microphone recording.
+- System-audio recording.
+- microphone + system-audio recording.
+- webcam overlay using the working capture node.
+- Area + microphone.
+- Area + system audio.
+- Area + microphone + webcam.
+- Pause/resume for video-only recording.
+- Screenshot portal v2 interactive Ubuntu workflow.
+- screenshot storage owned by the system under `~/Pictures/Screenshots`.
+- clean selected-area crop output.
+- source-level EOS finalization in successful runs.
+
+Known non-blocking defects/limitations remain documented rather than erased:
+
+- Window capture motion can be substantially worse than Full Screen/Area for moving content.
+- a brief checkerboard-like startup frame can appear in recordings that use webcam overlay.
+- GNOME external screen-share stop can temporarily leave a duplicate pointer artifact.
+- some runs can still hit bounded finalization timeout while preserving a playable robust MP4.
+- X11 coverage is not yet validated.
+- portal v3 screenshot target-specific behavior is not available on the current portal-v2 test system.
+
+The baseline branch must remain unchanged. New implementation work should occur on separate development/improvement branches and be accepted only after regression comparison against this baseline.
+
+On this specific tested low-resource machine, the user reports the current application as more practical for his workflow than Kazam, Kooha, and OBS. This is a machine-specific field assessment, not a general cross-platform benchmark.
 
 ## Milestone C — Performance and compatibility
 
