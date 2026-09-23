@@ -400,3 +400,47 @@ Issue #6 (SCREENSHOT-001) is closed as completed.
 Do not ask for another Window field test until a non-crashing alternative has been designed and statically/unit tested.
 
 Proceed with the next independent Milestone B feature: Wayland Area recording, while leaving the stable Window CFR path intact.
+
+
+## Field clarification — 2026-09-23, timing sample attribution
+
+Five later `Video timing stats` lines were all produced by:
+
+```text
+Video
+Full screen
+Balanced
+30 FPS
+```
+
+with different combinations of microphone, system audio, and webcam. Exact row-to-accessory mapping was not retained.
+
+Therefore these samples must not be interpreted as Window measurements. They also show that a large duplicate count can coexist with an acceptable Full Screen recording, so timing counters need configuration context and must be interpreted together with perceived motion quality.
+
+Diagnostics now print:
+
+```text
+source=<...> quality=<...> fps=<...>
+mic=<0|1> system_audio=<0|1> webcam=<0|1>
+in=<...> out=<...> drop=<...> duplicate=<...>
+```
+
+## Screenshot storage clarification
+
+Portal-v2 screenshot behavior on the tested machine:
+
+- Ubuntu saves full-screen, area, and window screenshots under
+  `~/Pictures/Screenshots`.
+- Area/window captures could additionally be copied by the recorder into
+  `~/Videos`.
+- Full-screen capture appeared only under Ubuntu's Screenshots folder.
+
+This duplicate-copy behavior is an application bug, not a second desired save path.
+
+Patch:
+- portal v2 storage is now always treated as system-managed;
+- the recorder no longer copies returned v2 screenshot URIs;
+- portal v3+ keeps app-managed result handling.
+
+Focused acceptance check after update:
+take one area or window screenshot and confirm it exists only in Ubuntu's Screenshots folder.
