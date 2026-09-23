@@ -189,11 +189,10 @@ def build_video_pipeline(
     video_chain = (
         f"{video_src} ! "
         f"{_queue('video_capture_q', VIDEO_CAPTURE_QUEUE_NS, 'downstream')} ! "
-        "videoconvert ! videorate ! "
+        "videoconvert ! video/x-raw,format=I420 ! "
+        "videorate name=video_rate skip-to-first=true ! "
         f"video/x-raw,framerate={config.fps}/1 ! videoscale ! "
     )
-    if config.quality.scale_percent != 100:
-        video_chain += "videoconvert ! "
 
     video_mux_queue = _queue("video_mux_q", VIDEO_MUX_QUEUE_NS)
 
