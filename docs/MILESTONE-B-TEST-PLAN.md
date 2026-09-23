@@ -444,3 +444,58 @@ Patch:
 
 Focused acceptance check after update:
 take one area or window screenshot and confirm it exists only in Ubuntu's Screenshots folder.
+
+
+## Field results — 2026-09-23, cycle 5
+
+### Screenshot portal v2 storage — FINAL PASS
+
+After commit `408d283`:
+
+- full-screen screenshot: saved only under `~/Pictures/Screenshots`;
+- area screenshot: saved only under `~/Pictures/Screenshots`;
+- window screenshot: saved only under `~/Pictures/Screenshots`;
+- no screenshot copy is created under `~/Videos`.
+
+SCREENSHOT-001 (#6) is closed as completed for portal v2.
+
+## Wayland Area recording — implementation ready for first field test
+
+Implemented workflow:
+
+1. Video → Area.
+2. Portal asks for the monitor.
+3. Recorder keeps the portal session prepared without encoding yet.
+4. A translucent fullscreen GTK overlay appears on the selected monitor.
+5. User drags a rectangle; Esc cancels and closes the prepared portal session.
+6. Rectangle is stored as normalized geometry.
+7. GStreamer starts with `videocrop name=area_crop`.
+8. A pad probe reads the actual negotiated PipeWire width/height.
+9. Pixel crop margins are computed and aligned to even I420/H.264 output dimensions.
+10. `area_gate` stays closed until crop margins are configured, preventing a full-screen startup frame from leaking into the output.
+
+The portal-reported monitor `position`/`size` are used only to choose the matching GTK monitor, not as the actual video pixel size.
+
+### First Area field test
+
+Use only:
+
+```text
+Video
+Area
+Balanced
+15 FPS
+No audio
+No webcam
+```
+
+Pass criteria:
+
+- portal lets the user select the monitor;
+- translucent selector covers the selected monitor;
+- drag rectangle is visible and usable;
+- recording starts after mouse release;
+- output contains only the selected rectangle;
+- no full-screen startup frame is visible;
+- Stop creates a readable MP4;
+- terminal prints `Area crop configured: stream=...`.
