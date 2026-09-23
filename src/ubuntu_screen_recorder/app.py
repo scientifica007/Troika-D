@@ -34,6 +34,7 @@ class MainWindow(Gtk.ApplicationWindow):
         self.recorder = Recorder(self.cap, self.set_status)
         self.portal = PortalClient() if self.cap.has_portal else None
         self.paused = False
+        self._closing_after_recording = False
 
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
         self.add(root)
@@ -386,11 +387,34 @@ class MainWindow(Gtk.ApplicationWindow):
         dialog.run()
         dialog.destroy()
 
-    def _on_close(self, *_args):
+    def _remove_device_poll(self) -> None:
         if getattr(self, "_device_poll_id", None):
             GLib.source_remove(self._device_poll_id)
             self._device_poll_id = None
-        self.recorder.force_stop()
+
+    def _finish_close_when_inactive(self) -> bool:
+        if self.recorder.active:
+            return True
+        self._remove_device_poll()
+        self._closing_after_recording = False
+        self.destroy()
+        return False
+
+    def _on_close(self, *_args):
+        if self.recorder.active:
+            if not self._closing_after_recording:
+                self._closing_after_recording = True
+                self.set_status(
+                    "Finalizing recording before exit…"
+                )
+                self.recorder.stop()
+                GLib.timeout_add(
+                    100,
+                    self._finish_close_when_inactive,
+                )
+            return True
+
+        self._remove_device_poll()
         return False
 
 
