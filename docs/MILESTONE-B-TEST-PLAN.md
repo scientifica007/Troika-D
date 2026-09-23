@@ -271,3 +271,82 @@ Only these checks are needed:
    Confirm whether the recorder UI is absent and whether each result is saved without the code=2 error.
 
 After those checks, proceed to implement Wayland Area video capture.
+
+
+## Field results — 2026-09-23, cycle 3
+
+### Window / Balanced / 15 FPS
+
+- startup green corruption: FIXED in this field run;
+- ordinary page motion: minor, acceptable stutter;
+- YouTube motion inside the selected Brave window: still heavily choppy.
+
+Timing counters:
+
+```text
+Video timing stats [eos]: in=1676 out=747 drop=1062 duplicate=133
+```
+
+This confirms severe drop/duplicate churn under forced constant 15 FPS.
+
+### Full screen / Balanced / 30 FPS
+
+PASS in this run.
+
+- live YouTube playback: smooth;
+- recorded YouTube playback: smooth;
+- no visible interruption.
+
+Timing counters:
+
+```text
+Video timing stats [eos]: in=938 out=1152 drop=26 duplicate=240
+```
+
+The known-good Full Screen CFR path is therefore left unchanged.
+
+### Screenshot portal behavior
+
+Detected backend:
+
+```text
+version=2
+available-targets=0x0
+```
+
+Therefore portal v2 does not support application-selected Full Screen / Window / Area / Active Window targets. All four prior UI choices necessarily opened the same Ubuntu interactive screenshot tool.
+
+The recorder correctly hides before the system screenshot UI appears, but this portal/backend ends with response code 2 even after the user completes the screenshot.
+
+Cycle-3 fix:
+
+- portal v2 now exposes one source choice: `Interactive screenshot (system)`;
+- the four source-specific choices are shown only for portal v3+ when advertised;
+- response code 2 after this legacy external flow is treated as system-tool completion instead of an application error;
+- the Save-to chooser is disabled for this legacy portal path because the system screenshot tool controls its own destination.
+
+Tracked as issue #6 (SCREENSHOT-001).
+
+### Window timing experiment applied
+
+For Wayland Window only:
+
+- preserve native source timestamps;
+- cap maximum frame rate with `videorate max-rate`;
+- use `drop-only=true`;
+- do not force a constant-framerate caps filter;
+- do not synthesize duplicate frames.
+
+Full Screen keeps the previously validated constant-framerate pipeline.
+
+## Focused re-test after cycle-3 patch
+
+1. Window / Balanced / 15 FPS with YouTube motion.
+   - report visual smoothness;
+   - copy `Video timing stats [eos]`.
+
+2. Screenshot mode.
+   - confirm Source now shows one interactive system choice on this portal v2 machine;
+   - confirm no error dialog appears after taking the screenshot.
+
+If Window motion improves materially, keep the source-specific timing strategy and proceed to Wayland Area recording.
