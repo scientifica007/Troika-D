@@ -560,3 +560,33 @@ Only verify selector appearance:
 5. Esc may be used to cancel; a full recording is not required for this visual re-test.
 
 After selector acceptance, continue with Area + microphone and Area + webcam.
+
+
+## Field result — 2026-09-23, cycle 7
+
+The second transparency fix still failed on the tested GNOME/Wayland system:
+the Area selector remained fully black and the desktop was not visible.
+
+Timing from the visual-only run:
+
+```text
+Wayland portal stream: fd=26, node-id=69, position=(0, 0), size=(1366, 768)
+Area crop configured: stream=1366x768 left=1020 right=2 top=132 bottom=4
+Video timing stats [eos]: source=area quality=balanced fps=30 mic=0 system_audio=0 webcam=0 in=178 out=712 drop=15 duplicate=549
+```
+
+Decision:
+transparent fullscreen GTK selection is rejected for this Wayland path.
+
+Replacement implementation:
+- hide recorder UI;
+- use an additional PipeWire remote in the same authorized portal session;
+- grab one RGB preview frame;
+- display that frame in a normal opaque fullscreen selector;
+- dim the preview and show the dragged rectangle at full brightness;
+- reuse the validated normalized-crop → negotiated-caps videocrop recording path.
+
+Focused next test:
+Video → Area → choose monitor.
+Expected: the selector shows a snapshot of the actual desktop, not a black screen.
+A full recording is not required unless the preview is correct.
