@@ -38,7 +38,6 @@ class Recorder:
         self.portal_closed_subscription = 0
         self.stop_timeout_id = 0
         self.stopping = False
-        self.active_config = None
         self.active_config: Optional[RecordingConfig] = None
 
     @property
