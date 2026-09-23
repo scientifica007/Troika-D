@@ -171,7 +171,9 @@ class PortalClient:
             options["target"] = GLib.Variant("u", target)
         return options, targeted
 
-    def screenshot(self, target: int, destination_dir: Path) -> Path:
+    def screenshot(
+        self, target: int, destination_dir: Path
+    ) -> Optional[Path]:
         version, available_targets = self.screenshot_capabilities()
         token = (
             f"shot_{os.getpid()}_{GLib.get_monotonic_time()}"
@@ -227,6 +229,14 @@ class PortalClient:
                     ),
                     retry_token,
                 )
+            elif version < 3 and exc.code == 2:
+                # GNOME/Ubuntu Screenshot portal v2 can hand control
+                # to the system screenshot UI and then end the portal
+                # request with response code 2 after the screenshot
+                # tool itself completes. There is no target API or
+                # reliable URI in this legacy path, so treat this as
+                # external completion rather than an application error.
+                return None
             else:
                 raise
         uri = results.get("uri")
