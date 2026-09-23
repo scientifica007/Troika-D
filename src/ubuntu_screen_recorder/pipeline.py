@@ -206,14 +206,41 @@ def build_video_pipeline(
             "valve name=area_gate drop=true ! "
         )
 
-    video_chain = (
-        f"{video_src} ! "
-        f"{_queue('video_capture_q', VIDEO_CAPTURE_QUEUE_NS, 'downstream')} ! "
-        f"{area_stage}"
-        "videoconvert ! video/x-raw,format=I420 ! "
-        "videorate name=video_rate skip-to-first=true ! "
-        f"video/x-raw,framerate={config.fps}/1 ! videoscale ! "
+    # PERF-001 v3: on Wayland Window streams, reduce frame rate before
+    # the expensive RGB/YUV colour conversion. The previous stable layout
+    # converted every incoming compositor frame to I420 before videorate
+    # discarded frames down to the requested FPS. On the low-power field
+    # machine that can waste substantial CPU during motion-heavy Window
+    # capture.
+    #
+    # Full Screen and Area keep the protected field-tested element order.
+    # This still uses ordinary videorate; the rejected drop-only/max-rate
+    # mode and the rejected no-videorate caps experiment are not used.
+    early_window_rate = (
+        session_type == "wayland"
+        and config.source in (
+            CaptureSource.WINDOW,
+            CaptureSource.ACTIVE_WINDOW,
+        )
     )
+
+    if early_window_rate:
+        video_chain = (
+            f"{video_src} ! "
+            f"{_queue('video_capture_q', VIDEO_CAPTURE_QUEUE_NS, 'downstream')} ! "
+            "videorate name=video_rate skip-to-first=true ! "
+            f"video/x-raw,framerate={config.fps}/1 ! "
+            "videoconvert ! video/x-raw,format=I420 ! videoscale ! "
+        )
+    else:
+        video_chain = (
+            f"{video_src} ! "
+            f"{_queue('video_capture_q', VIDEO_CAPTURE_QUEUE_NS, 'downstream')} ! "
+            f"{area_stage}"
+            "videoconvert ! video/x-raw,format=I420 ! "
+            "videorate name=video_rate skip-to-first=true ! "
+            f"video/x-raw,framerate={config.fps}/1 ! videoscale ! "
+        )
 
     video_mux_queue = _queue("video_mux_q", VIDEO_MUX_QUEUE_NS)
 
