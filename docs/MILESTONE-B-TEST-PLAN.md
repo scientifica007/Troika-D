@@ -350,3 +350,53 @@ Full Screen keeps the previously validated constant-framerate pipeline.
    - confirm no error dialog appears after taking the screenshot.
 
 If Window motion improves materially, keep the source-specific timing strategy and proceed to Wayland Area recording.
+
+
+## Field results — 2026-09-23, cycle 4
+
+### Window timing experiment
+
+FAIL / HARD REGRESSION.
+
+The Window-only pipeline using:
+
+```text
+videorate skip-to-first=true drop-only=true max-rate=15
+```
+
+hard-aborted twice:
+
+```text
+gst_video_rate_push_buffer: assertion failed:
+(GST_BUFFER_DURATION_IS_VALID (outbuf))
+Aborted (core dumped)
+```
+
+The application process terminated and left a non-playable partial file.
+
+Decision:
+
+- reject this experiment;
+- revert immediately to the previously field-stable CFR Window path;
+- track the regression as issue #7 (CRASH-001);
+- do not replace the stable Window path again without an isolated safety test.
+
+### Screenshot portal v2
+
+PASS.
+
+The revised application now shows:
+
+```text
+Interactive screenshot (system)
+```
+
+The recorder hides, Ubuntu's screenshot tool operates normally, and no erroneous code=2 dialog is shown.
+
+Issue #6 (SCREENSHOT-001) is closed as completed.
+
+## Next engineering step
+
+Do not ask for another Window field test until a non-crashing alternative has been designed and statically/unit tested.
+
+Proceed with the next independent Milestone B feature: Wayland Area recording, while leaving the stable Window CFR path intact.
