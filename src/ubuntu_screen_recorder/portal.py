@@ -21,6 +21,10 @@ class PortalError(RuntimeError):
     pass
 
 
+def _unwrap(value):
+    return value.unpack() if isinstance(value, GLib.Variant) else value
+
+
 class PortalClient:
     def __init__(self) -> None:
         self.bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
@@ -111,7 +115,9 @@ class PortalClient:
             shutil.copy2(source, target_path)
         return target_path
 
-    def create_screencast(self, source_types: int = 3, cursor_mode: int = 2) -> Tuple[str, int, str]:
+    def create_screencast(
+        self, source_types: int = 3, cursor_mode: int = 2
+    ) -> Tuple[str, int, int, Optional[int]]:
         create_token = f"create_{os.getpid()}_{GLib.get_monotonic_time()}".replace("-", "_")
         session_token = f"session_{os.getpid()}_{GLib.get_monotonic_time()}".replace("-", "_")
         create_options = {
@@ -124,7 +130,7 @@ class PortalClient:
             GLib.Variant("(a{sv})", (create_options,)),
             create_token,
         )
-        session_handle = created.get("session_handle")
+        session_handle = _unwrap(created.get("session_handle"))
         if not session_handle:
             raise PortalError("ScreenCast portal returned no session handle")
 
@@ -150,13 +156,20 @@ class PortalClient:
             GLib.Variant("(osa{sv})", (session_handle, "", start_options)),
             start_token,
         )
-        streams = started.get("streams") or []
+        streams = _unwrap(started.get("streams")) or []
         if not streams:
             raise PortalError("ScreenCast portal returned no streams")
+
         node_id, props = streams[0]
-        target_object = str(props.get("pipewire-serial", node_id))
+        node_id = int(_unwrap(node_id))
+        props = _unwrap(props) or {}
+
+        serial_value = props.get("pipewire-serial")
+        serial_value = _unwrap(serial_value) if serial_value is not None else None
+        pipewire_serial = int(serial_value) if serial_value is not None else None
+
         fd = self._open_pipewire_remote(session_handle)
-        return session_handle, fd, target_object
+        return session_handle, fd, node_id, pipewire_serial
 
     def _open_pipewire_remote(self, session_handle: str) -> int:
         params = GLib.Variant("(oa{sv})", (session_handle, {}))

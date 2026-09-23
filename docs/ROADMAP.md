@@ -13,6 +13,8 @@
 - [x] audio-only mode
 - [x] webcam overlay foundation
 - [x] unit tests for model/pipeline decisions
+- [x] Wayland compatibility for modern pipewire-serial and legacy portal node IDs
+- [x] clean GStreamer NULL-state teardown after startup failure
 
 ## Milestone B — Capture completeness
 
@@ -20,6 +22,7 @@
 - [ ] X11 interactive region picker
 - [ ] Wayland region preview/crop workflow
 - [ ] robust pause/resume and EOS finalization
+- [ ] non-blocking startup/error handling
 - [ ] countdown
 - [ ] configurable webcam size/position
 - [ ] audio level meters

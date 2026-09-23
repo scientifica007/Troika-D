@@ -48,12 +48,22 @@ class Recorder:
                 raise RuntimeError("Wayland capture requires XDG Desktop Portal")
             self.status_cb("Select a screen or window in the system dialog…")
             source_types = 1 if config.source.value in {"screen", "area"} else 2
-            session, fd, target = self.portal.create_screencast(
+            session, fd, node_id, pipewire_serial = self.portal.create_screencast(
                 source_types=source_types,
                 cursor_mode=2 if config.show_pointer else 1,
             )
             self.portal_session = session
-            portal_stream = PortalStream(fd=fd, target_object=target)
+            portal_stream = PortalStream(
+                fd=fd,
+                node_id=node_id,
+                pipewire_serial=pipewire_serial,
+            )
+            selector_kind = "serial" if pipewire_serial is not None else "node-id"
+            selector_value = pipewire_serial if pipewire_serial is not None else node_id
+            print(
+                f"Wayland portal stream: fd={fd}, {selector_kind}={selector_value}",
+                flush=True,
+            )
 
         plan = build_pipeline(
             config,
@@ -63,14 +73,20 @@ class Recorder:
             self.capabilities.has_vp8enc,
             portal_stream,
         )
-        self.pipeline = Gst.parse_launch(plan.description)
-        bus = self.pipeline.get_bus()
+
+        pipeline = Gst.parse_launch(plan.description)
+        self.pipeline = pipeline
+        bus = pipeline.get_bus()
         bus.add_signal_watch()
         bus.connect("message", self._on_message)
-        result = self.pipeline.set_state(Gst.State.PLAYING)
+
+        result = pipeline.set_state(Gst.State.PLAYING)
         if result == Gst.StateChangeReturn.FAILURE:
-            self._cleanup()
+            pipeline.set_state(Gst.State.NULL)
+            if self.pipeline is pipeline:
+                self._cleanup()
             raise RuntimeError("GStreamer failed to start the recording pipeline")
+
         self.status_cb(f"Recording — {plan.encoder}")
 
     def pause(self) -> None:
@@ -92,8 +108,9 @@ class Recorder:
             self._cleanup()
 
     def force_stop(self) -> None:
-        if self.pipeline:
-            self.pipeline.set_state(Gst.State.NULL)
+        pipeline = self.pipeline
+        if pipeline:
+            pipeline.set_state(Gst.State.NULL)
         self._cleanup()
 
     def _on_message(self, _bus, message) -> None:
@@ -101,11 +118,12 @@ class Recorder:
             err, debug = message.parse_error()
             self.status_cb(f"Recording error: {err.message}")
             if debug:
-                print(debug)
+                print(debug, flush=True)
             self.force_stop()
         elif message.type == Gst.MessageType.EOS:
-            if self.pipeline:
-                self.pipeline.set_state(Gst.State.NULL)
+            pipeline = self.pipeline
+            if pipeline:
+                pipeline.set_state(Gst.State.NULL)
             self.status_cb("Saved")
             self._cleanup()
 

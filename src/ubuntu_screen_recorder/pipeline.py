@@ -8,7 +8,8 @@ from .models import RecordingConfig, RecordingMode
 @dataclass(frozen=True)
 class PortalStream:
     fd: int
-    target_object: str
+    node_id: int
+    pipewire_serial: Optional[int] = None
 
 
 @dataclass(frozen=True)
@@ -63,6 +64,18 @@ def build_audio_only_pipeline(config: RecordingConfig, output_path: Path) -> Pip
     return PipelinePlan(desc, "ogg", "Opus")
 
 
+def _wayland_video_source(stream: PortalStream) -> str:
+    # ScreenCast portal v6+ may expose pipewire-serial. GStreamer's target-object
+    # expects a PipeWire object serial/name. Older portals only expose the node ID;
+    # pipewiresrc's deprecated-but-required-for-compatibility path property maps
+    # directly to that numeric node ID.
+    if stream.pipewire_serial is not None:
+        selector = f"target-object={_q(str(stream.pipewire_serial))}"
+    else:
+        selector = f"path={_q(str(stream.node_id))}"
+    return f"pipewiresrc fd={stream.fd} {selector} do-timestamp=true"
+
+
 def build_video_pipeline(
     config: RecordingConfig,
     output_path: Path,
@@ -78,10 +91,7 @@ def build_video_pipeline(
     if session_type == "wayland":
         if portal_stream is None:
             raise ValueError("Wayland video recording needs a portal PipeWire stream")
-        video_src = (
-            f"pipewiresrc fd={portal_stream.fd} target-object={_q(portal_stream.target_object)} "
-            "do-timestamp=true"
-        )
+        video_src = _wayland_video_source(portal_stream)
     else:
         video_src = f"ximagesrc use-damage=true show-pointer={'true' if config.show_pointer else 'false'}"
 
