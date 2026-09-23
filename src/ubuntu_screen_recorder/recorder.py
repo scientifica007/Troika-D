@@ -192,7 +192,34 @@ class Recorder:
         )
 
     def force_stop(self) -> None:
+        self._log_video_timing("force-stop")
         self._force_null_and_cleanup()
+
+    def _log_video_timing(self, reason: str) -> None:
+        pipeline = self.pipeline
+        if not pipeline:
+            return
+        rate = pipeline.get_by_name("video_rate")
+        if rate is None:
+            return
+        try:
+            values = {
+                "in": rate.get_property("in"),
+                "out": rate.get_property("out"),
+                "drop": rate.get_property("drop"),
+                "duplicate": rate.get_property("duplicate"),
+            }
+        except Exception:
+            return
+        print(
+            "Video timing stats "
+            f"[{reason}]: "
+            f"in={values['in']} "
+            f"out={values['out']} "
+            f"drop={values['drop']} "
+            f"duplicate={values['duplicate']}",
+            flush=True,
+        )
 
     def _on_finalize_timeout(self) -> bool:
         self.stop_timeout_id = 0
@@ -202,6 +229,7 @@ class Recorder:
             "Finalization timeout — recording stopped. "
             "Robust MP4 headers preserve playability."
         )
+        self._log_video_timing("finalize-timeout")
         self._force_null_and_cleanup()
         return False
 
@@ -216,6 +244,7 @@ class Recorder:
             "closing the recording safely."
         )
         self.stopping = True
+        self._log_video_timing("external-portal-stop")
         self._force_null_and_cleanup(portal_already_closed=True)
         self.status_cb("Saved after system stop")
         return False
@@ -223,6 +252,7 @@ class Recorder:
     def _on_message(self, _bus, message) -> None:
         if message.type == Gst.MessageType.ERROR:
             err, debug = message.parse_error()
+            self._log_video_timing("error")
             if debug:
                 print(debug, flush=True)
 
@@ -236,6 +266,7 @@ class Recorder:
             self._force_null_and_cleanup()
 
         elif message.type == Gst.MessageType.EOS:
+            self._log_video_timing("eos")
             pipeline = self.pipeline
             if pipeline:
                 pipeline.set_state(Gst.State.NULL)
