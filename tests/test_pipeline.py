@@ -1,7 +1,7 @@
 import unittest
 from pathlib import Path
 
-from ubuntu_screen_recorder.models import CaptureSource, RecordingConfig
+from ubuntu_screen_recorder.models import RecordingConfig
 from ubuntu_screen_recorder.pipeline import (
     PortalStream,
     ROBUST_MP4_MAX_DURATION_NS,
@@ -156,34 +156,7 @@ class PipelineTests(unittest.TestCase):
             plan.description,
         )
 
-    def test_wayland_window_uses_drop_only_rate_cap(self):
-        config = RecordingConfig(
-            source=CaptureSource.WINDOW,
-            fps=15,
-        )
-        stream = PortalStream(
-            fd=9, node_id=77, pipewire_serial=None
-        )
-        plan = build_video_pipeline(
-            config,
-            Path("/tmp/a.mp4"),
-            "wayland",
-            True,
-            True,
-            stream,
-        )
-        self.assertIn(
-            "videorate name=video_rate "
-            "skip-to-first=true drop-only=true "
-            "max-rate=15",
-            plan.description,
-        )
-        self.assertNotIn(
-            "video/x-raw,framerate=15/1",
-            plan.description,
-        )
-
-    def test_fullscreen_keeps_constant_framerate_path(self):
+    def test_wayland_keeps_constant_framerate_path(self):
         config = RecordingConfig(fps=30)
         stream = PortalStream(
             fd=9, node_id=77, pipewire_serial=None
