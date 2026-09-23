@@ -21,7 +21,7 @@ SOURCE_NAMES = (
     "system_audio_src",
     "camera_src",
 )
-FINALIZE_TIMEOUT_SECONDS = 8
+FINALIZE_TIMEOUT_SECONDS = 12
 
 
 @dataclass(frozen=True)
@@ -187,57 +187,113 @@ class Recorder:
                     "Could not start Area preview pipeline"
                 )
 
-            sample = sink.emit(
-                "try-pull-sample",
-                timeout_seconds * Gst.SECOND,
+            # PipeWire/portal streams can expose one or more blank startup
+            # frames before the compositor begins delivering the real
+            # desktop image. The first-frame approach produced a completely
+            # white Area selector in field testing. Sample a short burst and
+            # keep the frame with the greatest visual range instead.
+            deadline_us = (
+                GLib.get_monotonic_time()
+                + timeout_seconds * 1_000_000
             )
-            if sample is None:
+            best = None
+            best_score = -1
+            best_stats = None
+            seen = 0
+
+            while GLib.get_monotonic_time() < deadline_us:
+                remaining_us = (
+                    deadline_us - GLib.get_monotonic_time()
+                )
+                pull_ns = min(
+                    250 * Gst.MSECOND,
+                    max(1, remaining_us * 1000),
+                )
+                sample = sink.emit(
+                    "try-pull-sample",
+                    pull_ns,
+                )
+                if sample is None:
+                    continue
+
+                caps = sample.get_caps()
+                structure = caps.get_structure(0)
+                ok_width, width = structure.get_int("width")
+                ok_height, height = structure.get_int("height")
+                if not ok_width or not ok_height or height <= 0:
+                    continue
+
+                buffer = sample.get_buffer()
+                ok, mapped = buffer.map(Gst.MapFlags.READ)
+                if not ok:
+                    continue
+                try:
+                    data = bytes(mapped.data)
+                finally:
+                    buffer.unmap(mapped)
+
+                minimum_stride = width * 3
+                rowstride = len(data) // height
+                if rowstride < minimum_stride:
+                    continue
+
+                seen += 1
+
+                # Score the active RGB pixels only (ignore row padding).
+                # A uniform white/black startup frame has a near-zero range;
+                # a real desktop normally has substantially more variation.
+                sample_values = []
+                row_step = max(1, height // 24)
+                col_step = max(1, width // 32)
+                for py in range(0, height, row_step):
+                    base = py * rowstride
+                    for px in range(0, width, col_step):
+                        offset = base + px * 3
+                        sample_values.extend(
+                            data[offset : offset + 3]
+                        )
+
+                if not sample_values:
+                    continue
+                minimum = min(sample_values)
+                maximum = max(sample_values)
+                mean = sum(sample_values) // len(sample_values)
+                score = maximum - minimum
+
+                if score > best_score:
+                    best_score = score
+                    best_stats = (seen, minimum, maximum, mean)
+                    best = PreviewFrame(
+                        width=width,
+                        height=height,
+                        rowstride=rowstride,
+                        data=data,
+                    )
+
+                # Once a clearly non-uniform frame arrives after a few
+                # startup buffers, there is no benefit in delaying the UI.
+                if seen >= 6 and score >= 48:
+                    break
+
+            if best is None:
                 raise RuntimeError(
                     "Timed out while capturing Area preview"
                 )
 
-            caps = sample.get_caps()
-            structure = caps.get_structure(0)
-            ok_width, width = structure.get_int("width")
-            ok_height, height = structure.get_int("height")
-            if not ok_width or not ok_height:
-                raise RuntimeError(
-                    "Area preview returned no video dimensions"
-                )
-
-            buffer = sample.get_buffer()
-            ok, mapped = buffer.map(Gst.MapFlags.READ)
-            if not ok:
-                raise RuntimeError(
-                    "Could not read Area preview frame"
-                )
-            try:
-                data = bytes(mapped.data)
-            finally:
-                buffer.unmap(mapped)
-
-            minimum_stride = width * 3
-            if height <= 0:
-                raise RuntimeError(
-                    "Area preview returned an invalid height"
-                )
-            rowstride = len(data) // height
-            if rowstride < minimum_stride:
-                raise RuntimeError(
-                    "Area preview returned an invalid RGB buffer"
-                )
-
+            frame_no, minimum, maximum, mean = best_stats
             print(
                 "Area preview captured: "
-                f"{width}x{height}, rowstride={rowstride}",
+                f"{best.width}x{best.height}, "
+                f"rowstride={best.rowstride}, "
+                f"frames={seen}, selected={frame_no}, "
+                f"rgb-range={minimum}..{maximum}, mean={mean}",
                 flush=True,
             )
-            return PreviewFrame(
-                width=width,
-                height=height,
-                rowstride=rowstride,
-                data=data,
-            )
+
+            # A flat frame is still returned rather than rejected because a
+            # legitimate desktop may itself be nearly uniform. The detailed
+            # statistics make field diagnosis unambiguous if that occurs.
+            return best
         finally:
             if pipeline is not None:
                 pipeline.set_state(Gst.State.NULL)
@@ -437,20 +493,38 @@ class Recorder:
         self.stopping = True
         self.status_cb("Finalizing recording…")
 
+        # Prefer a pipeline-level EOS: GstBin can dispatch it across the
+        # active branches and lets queues/encoders/muxers drain in the normal
+        # order. The earlier source-first approach intermittently reached the
+        # finalization timeout in Area recordings.
         accepted = False
-        for name in SOURCE_NAMES:
-            source = pipeline.get_by_name(name)
-            if source is None:
-                continue
-            try:
-                accepted = (
-                    source.send_event(Gst.Event.new_eos()) or accepted
-                )
-            except Exception:
-                pass
-
-        if not accepted:
+        try:
             accepted = pipeline.send_event(Gst.Event.new_eos())
+        except Exception:
+            accepted = False
+
+        fallback_sources = False
+        if not accepted:
+            fallback_sources = True
+            for name in SOURCE_NAMES:
+                source = pipeline.get_by_name(name)
+                if source is None:
+                    continue
+                try:
+                    accepted = (
+                        source.send_event(Gst.Event.new_eos())
+                        or accepted
+                    )
+                except Exception:
+                    pass
+
+        print(
+            "EOS request: "
+            f"pipeline={int(not fallback_sources)} "
+            f"fallback_sources={int(fallback_sources)} "
+            f"accepted={int(accepted)}",
+            flush=True,
+        )
 
         if not accepted:
             self.status_cb(
