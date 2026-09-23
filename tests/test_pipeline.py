@@ -146,6 +146,20 @@ class PipelineTests(unittest.TestCase):
             "v4l2src name=camera_src", plan.description
         )
 
+    def test_camera_compositor_avoids_checkerboard_startup(self):
+        config = RecordingConfig(
+            include_camera=True,
+            camera_device="/dev/video0",
+        )
+        plan = build_video_pipeline(
+            config, Path("/tmp/a.mp4"), "x11", True, True
+        )
+        self.assertIn(
+            "compositor name=comp background=black "
+            "start-time-selection=first",
+            plan.description,
+        )
+
     def test_video_chain_starts_from_first_real_frame(self):
         config = RecordingConfig()
         plan = build_video_pipeline(
