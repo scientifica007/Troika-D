@@ -636,3 +636,85 @@ Interpretation:
 - The compositor startup policy change removes the visible checkerboard in the tested Area + microphone + webcam path.
 - No regression was observed in Area selection, crop, microphone, webcam, or finalization.
 - Full-screen webcam acceptance remains the final focused check before this improvement is eligible for merge.
+
+
+## Field results — 2026-09-23, cycle 9
+
+### Webcam startup checkerboard fix — Full Screen acceptance
+
+Configuration:
+
+```text
+Mode: Video
+Source: Full screen
+Quality: Balanced
+Frame rate: 30 FPS
+Webcam: ON
+```
+
+PASS.
+
+Observed:
+
+- recording completed successfully;
+- the previous checkerboard artifact did not appear at the beginning;
+- no checkerboard artifact appeared at the end;
+- clean EOS finalization completed.
+
+Terminal evidence:
+
+```text
+Wayland portal stream: fd=26, node-id=83, position=(0, 0), size=(1366, 768)
+EOS request: source-pads=[screen_src:1,camera_src:1] pipeline-fallback=0 accepted=1
+Video timing stats [eos]: source=screen quality=balanced fps=30 mic=0 system_audio=0 webcam=1 in=434 out=617 drop=35 duplicate=218
+```
+
+Decision:
+
+- checkerboard startup/end defect is accepted as fixed for the tested Full Screen and Area webcam paths;
+- protected recovery branch created after acceptance:
+  `baseline/field-tested-2026-09-23-post-webcam-fix`.
+
+## Field results — 2026-09-23, cycle 10
+
+### Portal cancellation semantics — Full Screen and Window
+
+A dedicated UX branch changed screen-selection cancellation from an error condition to a normal user-cancel flow.
+
+Field acceptance:
+
+- Full Screen: pressing Cancel in the system Share Screen dialog returns to the recorder without an error dialog and reports `Screen selection cancelled`;
+- Window: same behavior;
+- the recorder remains usable immediately after cancellation;
+- subsequent normal Full Screen capture still starts, records, finalizes, and saves;
+- subsequent normal Window capture still starts, records, finalizes, and saves.
+
+Terminal evidence for the post-cancel normal-capture checks:
+
+```text
+Video timing stats [eos]: source=screen quality=balanced fps=15 mic=1 system_audio=0 webcam=0 in=232 out=155 drop=121 duplicate=44
+Video timing stats [eos]: source=window quality=balanced fps=15 mic=1 system_audio=0 webcam=0 in=214 out=205 drop=101 duplicate=92
+```
+
+CI also passed for the change. PR #11 was merged into `milestone-b/capture-completeness`.
+
+Canonical merge commit:
+
+```text
+675572d2216147b230acc70acf8f24c503ef9de1
+```
+
+Newest protected field-tested baseline:
+
+```text
+baseline/field-tested-2026-09-23-post-cancel-fix
+```
+
+## Next controlled validation
+
+Before adding another feature, complete the remaining B1 validation that already exists in the application:
+
+1. Pause/resume with video + external CM108 microphone.
+2. Audio-only with the built-in microphone.
+
+No implementation change is required for these two checks unless the field result exposes a defect.
