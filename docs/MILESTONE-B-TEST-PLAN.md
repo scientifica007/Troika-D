@@ -107,3 +107,57 @@ For each test, report only:
 - terminal error/warning only if one appears
 
 Screenshots are useful only when they show a defect or a source-selection result.
+
+
+## Field results — 2026-09-23, cycle 1
+
+### Test 1 — Audio-only / external microphone
+
+PASS.
+
+Observed:
+- Audio-only starts without the screen-sharing portal.
+- External CM108 microphone records successfully.
+- Output OGG file is created and readable.
+- Audio recording path is operational.
+
+### Test 3 — Microphone + system audio
+
+PASS for source mixing and recording.
+
+Observed:
+- External CM108 microphone and system audio can be recorded at the same time.
+- Screen video is recorded at the same time.
+- Stop/finalization succeeds.
+
+New defect discovered during this test:
+
+- Fast/moving YouTube content in the recorded image is visibly choppy at Balanced / 30 FPS.
+- This is tracked as GitHub issue #2 (PERF-001).
+- Audio mixing itself is not considered the cause until measurements show otherwise.
+
+### External GNOME stop control
+
+Recording can be stopped using the orange GNOME screen-sharing control and the application reports:
+`Saved after system stop`.
+
+A transient duplicate-pointer artifact was observed immediately afterward:
+- one pointer remains frozen near the top-bar stop location;
+- one pointer remains live;
+- the frozen pointer disappears after a delay.
+
+Tracked as GitHub issue #3 (PORTAL-001).
+
+## Next controlled tests
+
+Before implementing new capture features:
+
+1. Pause/resume: video only.
+2. Pause/resume: video + external microphone.
+3. Wayland Window capture.
+4. Screenshots: full screen, window, area, active window.
+5. Performance isolation for PERF-001:
+   - Economy / 30 FPS
+   - Balanced / 30 FPS
+   - Balanced / 15 FPS
+   using the same moving YouTube scene.
