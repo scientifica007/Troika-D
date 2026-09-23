@@ -65,10 +65,11 @@ milestone-b/capture-completeness
 - [ ] harden Wayland window motion quality (startup green artifact fixed in field test)
 - [x] reject Window drop-only/max-rate experiment after hard GStreamer abort
 - [ ] investigate safer Window timing design without destabilizing the known-stable CFR path
-- [x] Wayland selected-area monitor/overlay preparation
+- [x] Wayland selected-area monitor preparation
 - [x] selected-area rectangle interaction
 - [x] GStreamer videocrop integration
-- [ ] selected-area first field acceptance (capture works; selector transparency re-test pending)
+- [x] reject transparent fullscreen GTK selector after repeated Wayland field failure
+- [ ] selected-area PipeWire-preview selector field acceptance
 - [ ] area recording + microphone
 - [ ] area recording + webcam
 - [x] area recording + system audio
