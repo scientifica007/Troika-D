@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 from typing import Iterable, Optional, Sequence, Tuple
 
+import cairo
 import gi
 
 # Pin both GTK and GDK to the same major version before importing either
@@ -55,8 +56,16 @@ class AreaSelectionWindow(Gtk.Window):
 
         screen = self.get_screen()
         visual = screen.get_rgba_visual()
-        if visual is not None and screen.is_composited():
+        self._rgba_overlay = (
+            visual is not None and screen.is_composited()
+        )
+        if self._rgba_overlay:
             self.set_visual(visual)
+        else:
+            # Fallback for desktops where per-pixel alpha is unavailable.
+            # The whole window is translucent rather than becoming an
+            # unusable opaque black selector.
+            self.set_opacity(0.45)
 
         self.add_events(
             Gdk.EventMask.BUTTON_PRESS_MASK
@@ -90,6 +99,19 @@ class AreaSelectionWindow(Gtk.Window):
 
     def _on_draw(self, _widget, cr):
         allocation = self.get_allocation()
+
+        if self._rgba_overlay:
+            # Gtk.set_app_paintable() stops GTK from painting the normal
+            # opaque background, but the backing surface still needs to be
+            # explicitly cleared with SOURCE. Otherwise alpha can blend
+            # against an opaque black surface and the selector appears black.
+            cr.save()
+            cr.set_operator(cairo.OPERATOR_SOURCE)
+            cr.set_source_rgba(0.0, 0.0, 0.0, 0.0)
+            cr.paint()
+            cr.restore()
+
+        cr.set_operator(cairo.OPERATOR_OVER)
         cr.set_source_rgba(0.0, 0.0, 0.0, 0.28)
         cr.rectangle(0, 0, allocation.width, allocation.height)
         cr.fill()
@@ -97,10 +119,19 @@ class AreaSelectionWindow(Gtk.Window):
         rect = self._rectangle()
         if rect is not None:
             x, y, width, height = rect
-            cr.set_source_rgba(1.0, 1.0, 1.0, 0.12)
-            cr.rectangle(x, y, width, height)
-            cr.fill_preserve()
+
+            if self._rgba_overlay:
+                # Punch a clear window through the dim overlay so the user
+                # can see the exact recording area while dragging.
+                cr.save()
+                cr.set_operator(cairo.OPERATOR_CLEAR)
+                cr.rectangle(x, y, width, height)
+                cr.fill()
+                cr.restore()
+
+            cr.set_operator(cairo.OPERATOR_OVER)
             cr.set_source_rgba(1.0, 1.0, 1.0, 0.95)
+            cr.rectangle(x, y, width, height)
             cr.set_line_width(2.0)
             cr.stroke()
 
