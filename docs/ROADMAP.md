@@ -62,7 +62,8 @@ milestone-b/capture-completeness
 
 ### B2 — Complete Wayland capture modes
 
-- [ ] harden Wayland window motion quality and startup green-frame artifact
+- [ ] harden Wayland window motion quality (startup green artifact fixed in field test)
+- [ ] validate Window drop-only/native-timestamp rate cap against YouTube motion
 - [ ] Wayland selected-area preview
 - [ ] selected-area rectangle interaction
 - [ ] GStreamer videocrop integration
@@ -84,7 +85,7 @@ milestone-b/capture-completeness
 - [x] add skip-to-first startup timing guard
 - [x] remove unapplied Economy resolution-scaling claim
 - [x] remove misleading Active Window video option on Wayland/ScreenCast path
-- [ ] re-test screenshot portal after capability/fallback + hide-window fix
+- [ ] re-test screenshot portal v2 simplified interactive mode after code=2 compatibility fix
 - [ ] investigate PORTAL-001: transient duplicate cursor after GNOME external screen-share stop
 - [ ] non-blocking startup/error handling
 - [ ] countdown
