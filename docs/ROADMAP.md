@@ -50,8 +50,8 @@ milestone-b/capture-completeness
 ### B1 — Validate existing capabilities before new implementation
 
 - [ ] audio-only: built-in microphone
-- [ ] audio-only: external USB microphone
-- [ ] microphone + system-audio mixing
+- [x] audio-only: external USB microphone
+- [x] microphone + system-audio mixing
 - [ ] pause/resume: video only
 - [ ] pause/resume: video + microphone
 - [ ] Wayland window capture
@@ -79,6 +79,8 @@ milestone-b/capture-completeness
 
 ### B4 — Field hardening / usability
 
+- [ ] investigate PERF-001: choppy recorded motion during YouTube playback at Balanced / 30 FPS
+- [ ] investigate PORTAL-001: transient duplicate cursor after GNOME external screen-share stop
 - [ ] non-blocking startup/error handling
 - [ ] countdown
 - [ ] configurable webcam size/position
