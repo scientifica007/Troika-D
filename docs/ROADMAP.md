@@ -133,7 +133,7 @@ Validated in real use:
 - screenshot storage owned by the system under `~/Pictures/Screenshots`.
 - clean selected-area crop output.
 - source-level EOS finalization in successful runs.
-- audio-only recording with the built-in microphone (functional pass; input-noise source still to be isolated).
+- audio-only recording with the built-in microphone (functional pass; direct ALSA test confirms comparable noise outside the application stack).
 
 Known non-blocking defects/limitations remain documented rather than erased:
 
