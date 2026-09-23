@@ -161,3 +161,113 @@ Before implementing new capture features:
    - Balanced / 30 FPS
    - Balanced / 15 FPS
    using the same moving YouTube scene.
+
+
+## Field results — 2026-09-23, cycle 2
+
+### Performance isolation
+
+#### Balanced / 30 FPS / full screen / no audio / no webcam
+
+PARTIAL.
+
+- Live YouTube playback becomes slightly heavier.
+- Recorded motion contains clearly visible intermittent pauses.
+- The defect is easy to see in the recorded file.
+
+#### Balanced / 15 FPS / full screen / no audio / no webcam
+
+PASS for practical usability on the tested machine.
+
+- Live YouTube playback is materially smoother.
+- Recorded motion is much smoother and acceptable.
+- Small transient stutters correlate with periods of higher CPU/fan activity.
+
+#### Economy / 30 FPS / full screen / no audio / no webcam
+
+FAIL for recorded-motion quality.
+
+- Live playback remains smooth.
+- Recorded video has very frequent visible interruptions.
+- Inspection of the implementation found that Economy's configured 75% scale had never actually been applied; it only added an extra conversion stage. That false internal assumption has been removed before any further Economy benchmark.
+
+### Pause / Resume — video only
+
+PASS.
+
+Recording pauses when Pause is pressed and resumes when Resume is pressed.
+
+The video + microphone variant remains to be tested.
+
+### Wayland Window capture
+
+FUNCTIONAL PASS / MOTION QUALITY FAIL.
+
+- User selected a Brave window through the portal.
+- Only the selected Brave window was recorded.
+- Tab changes inside Brave remain visible because they are content changes inside the same selected window.
+- Switching to other application windows does not change the captured source.
+- At 30 FPS, scrolling and other motion produce substantial visible interruptions.
+- At 15 FPS, the result is much better but still not fully clean.
+- Green lines/corruption can appear at the beginning of a recording.
+
+The code now explicitly sets videorate `skip-to-first=true` and an I420 raw-video format before encoding, then exposes videorate counters for the next field run.
+
+### "Active Window" video mode
+
+The field result was identical to Window because this was not a distinct ScreenCast operation.
+
+The XDG ScreenCast portal only defines monitor, window, and virtual-monitor source types. The misleading Active Window video choice has therefore been removed from the video UI. Active Window remains meaningful for Screenshot portals that advertise screenshot target 8.
+
+### Area video
+
+EXPECTED FAIL / NOT IMPLEMENTED YET.
+
+The application correctly reports that Wayland Area recording needs the Milestone B preview/crop workflow.
+
+### Screenshot — Full screen
+
+FAIL in the pre-fix build.
+
+Observed:
+- a screenshot is physically taken;
+- the application then reports `Portal request Screenshot was cancelled or failed (code=2)`;
+- the recorder UI is visible in the screenshot, which is not practical for normal screenshot use.
+
+Fix applied for re-test:
+- query Screenshot portal version and AvailableTargets;
+- use target only when portal v3 advertises it;
+- preserve a returned URI even if a backend returns a non-zero response;
+- retry without the v3 target key when needed;
+- hide the recorder window before requesting the screenshot and restore it afterward.
+
+### Intermittent portal-stream failure
+
+One repeated-session attempt failed with:
+
+```text
+Recording error: stream error: target not found
+```
+
+Tracked as issue #4 (PORTAL-002). It is intermittent; successful sessions occurred before and after it.
+
+## Focused re-test after cycle-2 fixes
+
+Only these checks are needed:
+
+1. Window / Balanced / 15 FPS, 20–30 seconds with scrolling.
+   - Report visible green startup corruption: yes/no.
+   - Report overall motion quality.
+   - Copy the terminal line beginning `Video timing stats`.
+
+2. Full-screen / Balanced / 30 FPS, 20–30 seconds on the same moving content.
+   - Copy the terminal line beginning `Video timing stats`.
+
+3. Screenshot:
+   - Full screen
+   - Window
+   - Area
+   - Active window
+   Confirm whether the recorder UI is absent and whether each result is saved without the code=2 error.
+
+After those checks, proceed to implement Wayland Area video capture.
