@@ -499,3 +499,64 @@ Pass criteria:
 - no full-screen startup frame is visible;
 - Stop creates a readable MP4;
 - terminal prints `Area crop configured: stream=...`.
+
+
+## Field results — 2026-09-23, cycle 6
+
+### Wayland Area / Balanced / 15 FPS / no audio
+
+FUNCTIONAL PASS.
+
+- monitor portal selection works;
+- area selector is interactive;
+- selected-area recording starts and finalizes correctly;
+- output video is readable;
+- selected-area crop is applied correctly;
+- YouTube motion was generally smooth;
+- pointer movement correlated with visible interruptions in this run.
+
+Timing:
+
+```text
+source=area quality=balanced fps=15 mic=0 system_audio=0 webcam=0
+in=294 out=650 drop=114 duplicate=470
+```
+
+### Wayland Area / Balanced / 15 FPS / system audio ON
+
+PASS.
+
+- selected-area video good;
+- system audio good;
+- scrolling/page motion acceptable;
+- YouTube content good;
+- clean stop/finalization.
+
+Timing:
+
+```text
+source=area quality=balanced fps=15 mic=0 system_audio=1 webcam=0
+in=1669 out=1165 drop=745 duplicate=241
+```
+
+### Selector transparency defect
+
+The selector appeared as an opaque black fullscreen window rather than a translucent overlay.
+
+Patch applied:
+- clear backing surface to transparent with Cairo SOURCE;
+- draw only a translucent dim layer;
+- clear the active rectangle so the selected content remains visible;
+- use whole-window opacity as a fallback where RGBA compositing is unavailable.
+
+### Focused re-test
+
+Only verify selector appearance:
+
+1. Video → Area.
+2. Choose the monitor.
+3. Confirm the desktop remains visible under a dim translucent layer.
+4. Drag a rectangle and confirm the rectangle area is visually clearer than the dimmed surroundings.
+5. Esc may be used to cancel; a full recording is not required for this visual re-test.
+
+After selector acceptance, continue with Area + microphone and Area + webcam.
