@@ -1,6 +1,16 @@
 # Roadmap
 
-## Milestone A — Native foundation
+## Milestone A — Native foundation — COMPLETE
+
+Merged into `main` by PR #1.
+
+Canonical merge commit:
+
+```text
+b9670ca189f21b3ff93d43d78c49399f51d43fe9
+```
+
+Validated on the tested Wayland machine:
 
 - [x] Repository architecture
 - [x] GTK3 application shell
@@ -29,18 +39,51 @@
 - [x] finalize active recording before application-window exit
 - [x] stop/finalization field validation on Wayland
 
-## Milestone B — Capture completeness and field hardening
+## Milestone B — Capture completeness and field hardening — ACTIVE
 
-- [ ] validate microphone + system-audio mixing
-- [ ] validate audio-only path after live-audio changes
+Development branch:
+
+```text
+milestone-b/capture-completeness
+```
+
+### B1 — Validate existing capabilities before new implementation
+
+- [ ] audio-only: built-in microphone
+- [ ] audio-only: external USB microphone
+- [ ] microphone + system-audio mixing
+- [ ] pause/resume: video only
+- [ ] pause/resume: video + microphone
+- [ ] Wayland window capture
+- [ ] screenshot: full screen
+- [ ] screenshot: window
+- [ ] screenshot: selected area
+- [ ] screenshot: active window
+
+### B2 — Complete Wayland capture modes
+
+- [ ] verify/fix Wayland window capture after B1 test
+- [ ] Wayland selected-area preview
+- [ ] selected-area rectangle interaction
+- [ ] GStreamer videocrop integration
+- [ ] area recording + microphone
+- [ ] area recording + webcam
+- [ ] area stop/finalization QA
+
+### B3 — Complete X11 capture modes
+
 - [ ] X11 interactive window picker
 - [ ] X11 interactive region picker
-- [ ] Wayland region preview/crop workflow
-- [ ] pause/resume field validation
+- [ ] X11 full-screen regression test
+- [ ] X11 microphone/system-audio regression test
+
+### B4 — Field hardening / usability
+
 - [ ] non-blocking startup/error handling
 - [ ] countdown
 - [ ] configurable webcam size/position
 - [ ] audio level meters
+- [ ] pause/resume final field validation
 
 ## Milestone C — Performance and compatibility
 
