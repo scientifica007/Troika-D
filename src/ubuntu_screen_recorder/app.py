@@ -62,18 +62,11 @@ class MainWindow(Gtk.ApplicationWindow):
         ):
             self.mode.append(key, label)
         self.mode.set_active_id("video")
-        self.mode.connect("changed", self._sync_ui)
+        self.mode.connect("changed", self._on_mode_changed)
         self._row(grid, 0, "Mode", self.mode)
 
         self.source = Gtk.ComboBoxText()
-        for key, label in (
-            ("screen", "Full screen"),
-            ("window", "Window"),
-            ("area", "Area"),
-            ("active-window", "Active window"),
-        ):
-            self.source.append(key, label)
-        self.source.set_active_id("screen")
+        self._populate_sources("video")
         self._row(grid, 1, "Source", self.source)
 
         self.quality = Gtk.ComboBoxText()
@@ -154,6 +147,43 @@ class MainWindow(Gtk.ApplicationWindow):
         label.set_xalign(0)
         grid.attach(label, 0, row, 1, 1)
         grid.attach(widget, 1, row, 1, 1)
+
+    def _populate_sources(
+        self,
+        mode: str,
+        preferred_id: Optional[str] = None,
+    ) -> None:
+        if mode == "screenshot":
+            items = (
+                ("screen", "Full screen"),
+                ("window", "Window"),
+                ("area", "Area"),
+                ("active-window", "Active window"),
+            )
+        elif mode == "video":
+            # ScreenCast portal exposes monitor/window/virtual,
+            # not a distinct active-window source. Do not present
+            # Active window as if it were semantically different.
+            items = (
+                ("screen", "Full screen"),
+                ("window", "Window"),
+                ("area", "Area"),
+            )
+        else:
+            items = (("screen", "Full screen"),)
+
+        self._replace_combo(
+            self.source,
+            items,
+            preferred_id,
+            "screen",
+        )
+
+    def _on_mode_changed(self, *_args) -> None:
+        mode = self.mode.get_active_id() or "video"
+        preferred = self.source.get_active_id()
+        self._populate_sources(mode, preferred)
+        self._sync_ui()
 
     @staticmethod
     def _make_device_signature(
@@ -349,19 +379,52 @@ class MainWindow(Gtk.ApplicationWindow):
         if self.portal is None:
             self._show_error("XDG Screenshot Portal is unavailable")
             return
+
+        # Hide the recorder itself before asking the compositor for a
+        # screenshot. This makes full-screen screenshots practical and
+        # prevents our own UI from being forced into the captured image.
+        self.set_status("Preparing screenshot…")
+        self.hide()
+        GLib.timeout_add(
+            400,
+            self._perform_screenshot,
+            config,
+        )
+
+    def _perform_screenshot(
+        self,
+        config: RecordingConfig,
+    ) -> bool:
         targets = {
             CaptureSource.SCREEN: 1,
             CaptureSource.WINDOW: 2,
             CaptureSource.AREA: 4,
             CaptureSource.ACTIVE_WINDOW: 8,
         }
+        path = None
+        error = None
         try:
-            path = self.portal.screenshot(
-                targets[config.source], config.output_dir
+            config.output_dir.mkdir(
+                parents=True,
+                exist_ok=True,
             )
-            self.set_status(f"Screenshot saved: {path}")
-        except (PortalError, Exception) as exc:
-            self._show_error(str(exc))
+            path = self.portal.screenshot(
+                targets[config.source],
+                config.output_dir,
+            )
+        except Exception as exc:
+            error = exc
+        finally:
+            self.show_all()
+            self.present()
+
+        if error is not None:
+            self._show_error(str(error))
+        elif path is not None:
+            self.set_status(
+                f"Screenshot saved: {path}"
+            )
+        return False
 
     def _on_pause(self, _button) -> None:
         if not self.recorder.active:
