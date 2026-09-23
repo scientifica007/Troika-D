@@ -16,10 +16,19 @@ REQUEST_IFACE = "org.freedesktop.portal.Request"
 SESSION_IFACE = "org.freedesktop.portal.Session"
 SCREENSHOT_IFACE = "org.freedesktop.portal.Screenshot"
 SCREENCAST_IFACE = "org.freedesktop.portal.ScreenCast"
+PROPERTIES_IFACE = "org.freedesktop.DBus.Properties"
 
 
 class PortalError(RuntimeError):
-    pass
+    def __init__(
+        self,
+        message: str,
+        code: Optional[int] = None,
+        results: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+        self.results = results or {}
 
 
 def _unwrap(value):
@@ -94,26 +103,130 @@ class PortalClient:
         if response.get("code") != 0:
             raise PortalError(
                 f"Portal request {method} was cancelled or failed "
-                f"(code={response.get('code')})"
+                f"(code={response.get('code')})",
+                code=response.get("code"),
+                results=response.get("results", {}),
             )
         return response.get("results", {})
 
+    def _property(
+        self,
+        interface: str,
+        name: str,
+        default: Any = None,
+    ) -> Any:
+        try:
+            result = self.bus.call_sync(
+                BUS_NAME,
+                OBJECT_PATH,
+                PROPERTIES_IFACE,
+                "Get",
+                GLib.Variant("(ss)", (interface, name)),
+                GLib.VariantType.new("(v)"),
+                Gio.DBusCallFlags.NONE,
+                2000,
+                None,
+            )
+        except GLib.Error:
+            return default
+
+        value = result.unpack()[0]
+        return _unwrap(value)
+
+    def screenshot_capabilities(self) -> Tuple[int, int]:
+        version = int(
+            self._property(SCREENSHOT_IFACE, "version", 0) or 0
+        )
+        targets = int(
+            self._property(
+                SCREENSHOT_IFACE,
+                "AvailableTargets",
+                0,
+            )
+            or 0
+        )
+        return version, targets
+
+    @staticmethod
+    def _screenshot_options(
+        token: str,
+        target: int,
+        version: int,
+        available_targets: int,
+    ) -> Tuple[Dict[str, GLib.Variant], bool]:
+        targeted = (
+            version >= 3
+            and bool(available_targets & target)
+        )
+        options: Dict[str, GLib.Variant] = {
+            "handle_token": GLib.Variant("s", token),
+            "interactive": GLib.Variant(
+                "b",
+                target in (2, 4) or not targeted,
+            ),
+        }
+        if targeted:
+            options["target"] = GLib.Variant("u", target)
+        return options, targeted
+
     def screenshot(self, target: int, destination_dir: Path) -> Path:
+        version, available_targets = self.screenshot_capabilities()
         token = (
             f"shot_{os.getpid()}_{GLib.get_monotonic_time()}"
             .replace("-", "_")
         )
-        options = {
-            "handle_token": GLib.Variant("s", token),
-            "interactive": GLib.Variant("b", True),
-            "target": GLib.Variant("u", target),
-        }
-        results = self._request(
-            SCREENSHOT_IFACE,
-            "Screenshot",
-            GLib.Variant("(sa{sv})", ("", options)),
+        options, targeted = self._screenshot_options(
             token,
+            target,
+            version,
+            available_targets,
         )
+
+        print(
+            "Screenshot portal: "
+            f"version={version}, "
+            f"available-targets=0x{available_targets:x}, "
+            f"requested={target}, targeted={targeted}",
+            flush=True,
+        )
+
+        try:
+            results = self._request(
+                SCREENSHOT_IFACE,
+                "Screenshot",
+                GLib.Variant("(sa{sv})", ("", options)),
+                token,
+            )
+        except PortalError as exc:
+            # Some backends can still return a usable URI with a
+            # non-zero response after the screenshot was actually
+            # produced. Preserve that result instead of discarding it.
+            if exc.results.get("uri"):
+                results = exc.results
+            elif targeted:
+                # Compatibility fallback for older/misreporting portal
+                # backends: omit the v3 target key and let the
+                # interactive screenshot UI choose the target.
+                retry_token = (
+                    f"shot_retry_{os.getpid()}_"
+                    f"{GLib.get_monotonic_time()}"
+                ).replace("-", "_")
+                retry_options = {
+                    "handle_token": GLib.Variant(
+                        "s", retry_token
+                    ),
+                    "interactive": GLib.Variant("b", True),
+                }
+                results = self._request(
+                    SCREENSHOT_IFACE,
+                    "Screenshot",
+                    GLib.Variant(
+                        "(sa{sv})", ("", retry_options)
+                    ),
+                    retry_token,
+                )
+            else:
+                raise
         uri = results.get("uri")
         if not uri:
             raise PortalError("Screenshot portal returned no URI")
