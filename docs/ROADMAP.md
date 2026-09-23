@@ -55,7 +55,7 @@ baseline/field-tested-2026-09-23
 
 This baseline is a recovery point for the known-good implementation validated on the current Wayland test machine. Experimental changes must not overwrite or move this baseline.
 
-### B1 — Validate existing capabilities before new implementation
+### B1 — Validate existing capabilities before new implementation — COMPLETE ON CURRENT WAYLAND/PORTAL-V2 TEST MACHINE
 
 - [x] audio-only: built-in microphone
 - [x] audio-only: external USB microphone
@@ -133,7 +133,7 @@ Validated in real use:
 - screenshot storage owned by the system under `~/Pictures/Screenshots`.
 - clean selected-area crop output.
 - source-level EOS finalization in successful runs.
-- audio-only recording with the built-in microphone (functional pass; direct ALSA test confirms comparable noise outside the application stack).
+- audio-only recording with the built-in microphone; excessive system Capture/Internal Mic Boost was identified and corrected, after which practical audio quality became good in the application.
 
 Known non-blocking defects/limitations remain documented rather than erased:
 
