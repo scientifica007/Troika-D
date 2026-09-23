@@ -636,3 +636,197 @@ Interpretation:
 - The compositor startup policy change removes the visible checkerboard in the tested Area + microphone + webcam path.
 - No regression was observed in Area selection, crop, microphone, webcam, or finalization.
 - Full-screen webcam acceptance remains the final focused check before this improvement is eligible for merge.
+
+
+## Field results — 2026-09-23, cycle 9
+
+### Webcam startup checkerboard fix — Full Screen acceptance
+
+Configuration:
+
+```text
+Mode: Video
+Source: Full screen
+Quality: Balanced
+Frame rate: 30 FPS
+Webcam: ON
+```
+
+PASS.
+
+Observed:
+
+- recording completed successfully;
+- the previous checkerboard artifact did not appear at the beginning;
+- no checkerboard artifact appeared at the end;
+- clean EOS finalization completed.
+
+Terminal evidence:
+
+```text
+Wayland portal stream: fd=26, node-id=83, position=(0, 0), size=(1366, 768)
+EOS request: source-pads=[screen_src:1,camera_src:1] pipeline-fallback=0 accepted=1
+Video timing stats [eos]: source=screen quality=balanced fps=30 mic=0 system_audio=0 webcam=1 in=434 out=617 drop=35 duplicate=218
+```
+
+Decision:
+
+- checkerboard startup/end defect is accepted as fixed for the tested Full Screen and Area webcam paths;
+- protected recovery branch created after acceptance:
+  `baseline/field-tested-2026-09-23-post-webcam-fix`.
+
+## Field results — 2026-09-23, cycle 10
+
+### Portal cancellation semantics — Full Screen and Window
+
+A dedicated UX branch changed screen-selection cancellation from an error condition to a normal user-cancel flow.
+
+Field acceptance:
+
+- Full Screen: pressing Cancel in the system Share Screen dialog returns to the recorder without an error dialog and reports `Screen selection cancelled`;
+- Window: same behavior;
+- the recorder remains usable immediately after cancellation;
+- subsequent normal Full Screen capture still starts, records, finalizes, and saves;
+- subsequent normal Window capture still starts, records, finalizes, and saves.
+
+Terminal evidence for the post-cancel normal-capture checks:
+
+```text
+Video timing stats [eos]: source=screen quality=balanced fps=15 mic=1 system_audio=0 webcam=0 in=232 out=155 drop=121 duplicate=44
+Video timing stats [eos]: source=window quality=balanced fps=15 mic=1 system_audio=0 webcam=0 in=214 out=205 drop=101 duplicate=92
+```
+
+CI also passed for the change. PR #11 was merged into `milestone-b/capture-completeness`.
+
+Canonical merge commit:
+
+```text
+675572d2216147b230acc70acf8f24c503ef9de1
+```
+
+Newest protected field-tested baseline:
+
+```text
+baseline/field-tested-2026-09-23-post-cancel-fix
+```
+
+## Field results — 2026-09-23, cycle 11
+
+### Pause/resume — Full Screen + external CM108 microphone
+
+Configuration:
+
+```text
+Mode: Video
+Source: Full screen
+Quality: Balanced
+Frame rate: 15 FPS
+Record microphone: ON
+Microphone: CM108 Audio Controller Mono
+Record system audio: OFF
+Webcam overlay: OFF
+```
+
+PASS.
+
+Observed:
+
+- recording started normally after the screen-selection portal;
+- Pause stopped recording progress and the control changed to Resume;
+- Resume continued the same recording;
+- Stop completed and the file was saved successfully;
+- the recorder remained usable after the test.
+
+Terminal evidence:
+
+```text
+Wayland portal stream: fd=26, node-id=81, position=(0, 0), size=(1366, 768)
+EOS request: source-pads=[screen_src:1,mic_src:1] pipeline-fallback=0 accepted=1
+Video timing stats [eos]: source=screen quality=balanced fps=15 mic=1 system_audio=0 webcam=0 in=217 out=277 drop=101 duplicate=161
+```
+
+Decision:
+
+- B1 pause/resume with video + microphone is field-accepted on the tested Wayland machine;
+- no implementation change is required from this test.
+
+## Field results — 2026-09-23, cycle 12
+
+### Audio-only — built-in microphone
+
+Configuration:
+
+```text
+Mode: Audio only
+Microphone: Built-in Audio Analog Stereo
+System audio: OFF
+```
+
+FUNCTIONAL PASS / INPUT-NOISE QUALITY UNRESOLVED.
+
+Observed:
+
+- audio-only recording starts and records microphone input;
+- Stop requests EOS cleanly from the microphone source;
+- no video portal is involved;
+- the recorded speech is audible;
+- substantial background noise is present;
+- the user cannot yet distinguish whether that noise is the built-in microphone/electrical input noise or acoustic pickup of the computer fan.
+
+Terminal evidence:
+
+```text
+EOS request: source-pads=[mic_src:1] pipeline-fallback=0 accepted=1
+```
+
+The later `^C ... KeyboardInterrupt` occurred when the user manually terminated the still-running application after the recording test; it is not a recording-pipeline failure.
+
+Decision:
+
+- B1 audio-only functionality with the built-in microphone is field-accepted;
+- microphone noise rejection is not part of the B1 continuity criterion and remains a separate input-quality diagnostic;
+- no recorder implementation change is justified until a controlled comparison separates microphone/device noise from ambient fan noise.
+
+## Built-in microphone noise isolation — direct ALSA confirmation
+
+A direct ALSA recording was performed against the physical HDA capture device:
+
+```text
+card 0: MID [HDA Intel MID]
+device 0: ALC270 Analog [ALC270 Analog]
+```
+
+Command:
+
+```bash
+arecord -D plughw:0,0 -f S16_LE -r 48000 -c 1 -d 20 ~/mic-test.wav
+```
+
+Result:
+
+- the same background noise is present;
+- perceived noise intensity is similar to Ubuntu Screen Recorder, Kooha, and historical Kazam recordings;
+- therefore the noise is reproducible below the application/GStreamer/PipeWire layer and is not attributed to Ubuntu Screen Recorder.
+
+Hardware capability probe:
+
+```text
+FORMAT: S16_LE S32_LE
+CHANNELS: 2
+RATE: [44100 192000]
+```
+
+The later `arecord --dump-hw-params` setup error was caused by the command attempting a default 8-bit sample format that this capture device does not support; it does not indicate a recorder defect.
+
+Decision:
+
+- built-in-microphone noise is classified as an input/hardware/acoustic quality issue, not a recorder regression;
+- no noise-suppression or capture-pipeline modification is justified solely from this evidence.
+
+## B1 field-validation status
+
+All B1 validations that are executable on the current portal-v2 Wayland test machine are complete.
+
+The portal-v3 source-specific screenshot target check remains unavailable on this machine and is therefore not a field failure.
+
+Next work should proceed only on a separate improvement/development branch, preserving the protected field-tested baseline.
