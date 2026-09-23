@@ -55,15 +55,16 @@ milestone-b/capture-completeness
 - [x] pause/resume: video only
 - [ ] pause/resume: video + microphone
 - [x] Wayland window capture: functional selection/capture; motion-quality hardening remains
-- [ ] screenshot: full screen
-- [ ] screenshot: window
-- [ ] screenshot: selected area
-- [ ] screenshot: active window
+- [x] screenshot: portal v2 interactive system workflow
+- [x] screenshot: recorder hides before system screenshot UI
+- [x] screenshot: portal v2 code=2 compatibility behavior
+- [ ] screenshot: source-specific targets on portal v3+ (not available on current test machine)
 
 ### B2 — Complete Wayland capture modes
 
 - [ ] harden Wayland window motion quality (startup green artifact fixed in field test)
-- [ ] validate Window drop-only/native-timestamp rate cap against YouTube motion
+- [x] reject Window drop-only/max-rate experiment after hard GStreamer abort
+- [ ] investigate safer Window timing design without destabilizing the known-stable CFR path
 - [ ] Wayland selected-area preview
 - [ ] selected-area rectangle interaction
 - [ ] GStreamer videocrop integration
