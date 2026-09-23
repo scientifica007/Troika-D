@@ -206,14 +206,40 @@ def build_video_pipeline(
             "valve name=area_gate drop=true ! "
         )
 
-    video_chain = (
-        f"{video_src} ! "
-        f"{_queue('video_capture_q', VIDEO_CAPTURE_QUEUE_NS, 'downstream')} ! "
-        f"{area_stage}"
-        "videoconvert ! video/x-raw,format=I420 ! "
-        "videorate name=video_rate skip-to-first=true ! "
-        f"video/x-raw,framerate={config.fps}/1 ! videoscale ! "
+    # Field PERF-001 experiment: Wayland Window streams on the tested
+    # compositor arrive with irregular timing that forces the downstream CFR
+    # videorate path to discard a large fraction of useful frames. For Window
+    # only, ask the upstream PipeWire path to negotiate the requested nominal
+    # rate and preserve the delivered buffer timestamps into the encoder.
+    #
+    # Full Screen and Area deliberately retain the field-tested CFR path.
+    # Do not replace this with videorate drop-only/max-rate: that experiment
+    # hard-aborted GStreamer when a Window buffer had no valid duration.
+    wayland_native_window = (
+        session_type == "wayland"
+        and config.source in (
+            CaptureSource.WINDOW,
+            CaptureSource.ACTIVE_WINDOW,
+        )
     )
+
+    if wayland_native_window:
+        video_chain = (
+            f"{video_src} ! "
+            f"{_queue('video_capture_q', VIDEO_CAPTURE_QUEUE_NS, 'downstream')} ! "
+            "videoconvert ! "
+            f"video/x-raw,format=I420,framerate={config.fps}/1 ! "
+            "videoscale ! "
+        )
+    else:
+        video_chain = (
+            f"{video_src} ! "
+            f"{_queue('video_capture_q', VIDEO_CAPTURE_QUEUE_NS, 'downstream')} ! "
+            f"{area_stage}"
+            "videoconvert ! video/x-raw,format=I420 ! "
+            "videorate name=video_rate skip-to-first=true ! "
+            f"video/x-raw,framerate={config.fps}/1 ! videoscale ! "
+        )
 
     video_mux_queue = _queue("video_mux_q", VIDEO_MUX_QUEUE_NS)
 
