@@ -787,6 +787,42 @@ Decision:
 - microphone noise rejection is not part of the B1 continuity criterion and remains a separate input-quality diagnostic;
 - no recorder implementation change is justified until a controlled comparison separates microphone/device noise from ambient fan noise.
 
+## Built-in microphone noise isolation — direct ALSA confirmation
+
+A direct ALSA recording was performed against the physical HDA capture device:
+
+```text
+card 0: MID [HDA Intel MID]
+device 0: ALC270 Analog [ALC270 Analog]
+```
+
+Command:
+
+```bash
+arecord -D plughw:0,0 -f S16_LE -r 48000 -c 1 -d 20 ~/mic-test.wav
+```
+
+Result:
+
+- the same background noise is present;
+- perceived noise intensity is similar to Ubuntu Screen Recorder, Kooha, and historical Kazam recordings;
+- therefore the noise is reproducible below the application/GStreamer/PipeWire layer and is not attributed to Ubuntu Screen Recorder.
+
+Hardware capability probe:
+
+```text
+FORMAT: S16_LE S32_LE
+CHANNELS: 2
+RATE: [44100 192000]
+```
+
+The later `arecord --dump-hw-params` setup error was caused by the command attempting a default 8-bit sample format that this capture device does not support; it does not indicate a recorder defect.
+
+Decision:
+
+- built-in-microphone noise is classified as an input/hardware/acoustic quality issue, not a recorder regression;
+- no noise-suppression or capture-pipeline modification is justified solely from this evidence.
+
 ## B1 field-validation status
 
 All B1 validations that are executable on the current portal-v2 Wayland test machine are complete.
