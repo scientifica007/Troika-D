@@ -710,11 +710,50 @@ Newest protected field-tested baseline:
 baseline/field-tested-2026-09-23-post-cancel-fix
 ```
 
+## Field results — 2026-09-23, cycle 11
+
+### Pause/resume — Full Screen + external CM108 microphone
+
+Configuration:
+
+```text
+Mode: Video
+Source: Full screen
+Quality: Balanced
+Frame rate: 15 FPS
+Record microphone: ON
+Microphone: CM108 Audio Controller Mono
+Record system audio: OFF
+Webcam overlay: OFF
+```
+
+PASS.
+
+Observed:
+
+- recording started normally after the screen-selection portal;
+- Pause stopped recording progress and the control changed to Resume;
+- Resume continued the same recording;
+- Stop completed and the file was saved successfully;
+- the recorder remained usable after the test.
+
+Terminal evidence:
+
+```text
+Wayland portal stream: fd=26, node-id=81, position=(0, 0), size=(1366, 768)
+EOS request: source-pads=[screen_src:1,mic_src:1] pipeline-fallback=0 accepted=1
+Video timing stats [eos]: source=screen quality=balanced fps=15 mic=1 system_audio=0 webcam=0 in=217 out=277 drop=101 duplicate=161
+```
+
+Decision:
+
+- B1 pause/resume with video + microphone is field-accepted on the tested Wayland machine;
+- no implementation change is required from this test.
+
 ## Next controlled validation
 
-Before adding another feature, complete the remaining B1 validation that already exists in the application:
+Before adding another feature, complete the last remaining executable B1 validation on the current machine:
 
-1. Pause/resume with video + external CM108 microphone.
-2. Audio-only with the built-in microphone.
+1. Audio-only with the built-in microphone.
 
-No implementation change is required for these two checks unless the field result exposes a defect.
+No implementation change is required unless the field result exposes a defect.
