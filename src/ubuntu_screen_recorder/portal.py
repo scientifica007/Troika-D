@@ -9,6 +9,8 @@ import gi
 gi.require_version("Gio", "2.0")
 from gi.repository import Gio, GLib
 
+from .portal_policy import screenshot_request_policy
+
 
 BUS_NAME = "org.freedesktop.portal.Desktop"
 OBJECT_PATH = "/org/freedesktop/portal/desktop"
@@ -154,15 +156,15 @@ class PortalClient:
         version: int,
         available_targets: int,
     ) -> Tuple[Dict[str, GLib.Variant], bool]:
-        targeted = (
-            version >= 3
-            and bool(available_targets & target)
+        targeted, interactive = screenshot_request_policy(
+            target,
+            version,
+            available_targets,
         )
         options: Dict[str, GLib.Variant] = {
             "handle_token": GLib.Variant("s", token),
             "interactive": GLib.Variant(
-                "b",
-                target in (2, 4) or not targeted,
+                "b", interactive
             ),
         }
         if targeted:
