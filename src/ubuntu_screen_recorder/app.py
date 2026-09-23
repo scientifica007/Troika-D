@@ -2,7 +2,6 @@ import sys
 from pathlib import Path
 from typing import Iterable, Optional, Sequence, Tuple
 
-import cairo
 import gi
 
 # Pin both GTK and GDK to the same major version before importing either
@@ -10,8 +9,9 @@ import gi
 # without an explicit version can load Gdk 4 first, after which Gtk 3 cannot
 # require Gdk 3 and the application aborts during startup.
 gi.require_version("Gdk", "3.0")
+gi.require_version("GdkPixbuf", "2.0")
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gdk, GLib, Gtk
+from gi.repository import Gdk, GdkPixbuf, GLib, Gtk
 
 from .geometry import normalized_crop_from_selection
 from .models import CaptureSource, QUALITY_PROFILES, RecordingConfig, RecordingMode
@@ -34,38 +34,28 @@ class AreaSelectionWindow(Gtk.Window):
     def __init__(
         self,
         monitor_index: int,
+        preview_pixbuf: GdkPixbuf.Pixbuf,
         selected_cb,
         cancelled_cb,
     ):
         super().__init__(type=Gtk.WindowType.TOPLEVEL)
+        self.preview_pixbuf = preview_pixbuf
         self.selected_cb = selected_cb
         self.cancelled_cb = cancelled_cb
         self.start_point = None
         self.current_point = None
         self.dragging = False
         self._finished = False
+        self._scaled_preview = None
+        self._scaled_size = (0, 0)
 
         self.set_title("Select recording area")
         self.set_decorated(False)
         self.set_keep_above(True)
         self.set_skip_taskbar_hint(True)
         self.set_skip_pager_hint(True)
-        self.set_app_paintable(True)
         self.set_can_focus(True)
         self.set_accept_focus(True)
-
-        screen = self.get_screen()
-        visual = screen.get_rgba_visual()
-        self._rgba_overlay = (
-            visual is not None and screen.is_composited()
-        )
-        if self._rgba_overlay:
-            self.set_visual(visual)
-        else:
-            # Fallback for desktops where per-pixel alpha is unavailable.
-            # The whole window is translucent rather than becoming an
-            # unusable opaque black selector.
-            self.set_opacity(0.45)
 
         self.add_events(
             Gdk.EventMask.BUTTON_PRESS_MASK
@@ -73,7 +63,6 @@ class AreaSelectionWindow(Gtk.Window):
             | Gdk.EventMask.POINTER_MOTION_MASK
             | Gdk.EventMask.KEY_PRESS_MASK
         )
-        self.connect("realize", self._on_realize)
         self.connect("draw", self._on_draw)
         self.connect("button-press-event", self._on_press)
         self.connect("button-release-event", self._on_release)
@@ -81,23 +70,11 @@ class AreaSelectionWindow(Gtk.Window):
         self.connect("key-press-event", self._on_key)
         self.connect("delete-event", self._on_delete)
 
+        screen = self.get_screen()
         try:
             self.fullscreen_on_monitor(screen, monitor_index)
         except Exception:
             self.fullscreen()
-
-    def _on_realize(self, _widget):
-        # Wayland does not apply a traditional per-window opacity value.
-        # Explicitly mark the native surface as potentially non-opaque so
-        # the compositor honours the alpha channel we paint with Cairo.
-        # Without this, GNOME/Mutter can treat the fullscreen selector as
-        # opaque and transparent pixels appear black.
-        window = self.get_window()
-        if window is not None:
-            try:
-                window.set_opaque_region(None)
-            except (AttributeError, TypeError):
-                pass
 
     def _rectangle(self):
         if self.start_point is None or self.current_point is None:
@@ -111,50 +88,57 @@ class AreaSelectionWindow(Gtk.Window):
             abs(y2 - y1),
         )
 
+    def _preview_for_allocation(self, width: int, height: int):
+        size = (max(1, width), max(1, height))
+        if self._scaled_preview is None or self._scaled_size != size:
+            self._scaled_preview = self.preview_pixbuf.scale_simple(
+                size[0],
+                size[1],
+                GdkPixbuf.InterpType.BILINEAR,
+            )
+            self._scaled_size = size
+        return self._scaled_preview
+
+    @staticmethod
+    def _paint_preview(cr, pixbuf) -> None:
+        Gdk.cairo_set_source_pixbuf(cr, pixbuf, 0, 0)
+        cr.paint()
+
     def _on_draw(self, _widget, cr):
         allocation = self.get_allocation()
+        preview = self._preview_for_allocation(
+            allocation.width,
+            allocation.height,
+        )
 
-        if self._rgba_overlay:
-            # Gtk.set_app_paintable() stops GTK from painting the normal
-            # opaque background, but the backing surface still needs to be
-            # explicitly cleared with SOURCE. Otherwise alpha can blend
-            # against an opaque black surface and the selector appears black.
-            cr.save()
-            cr.set_operator(cairo.OPERATOR_SOURCE)
-            cr.set_source_rgba(0.0, 0.0, 0.0, 0.0)
-            cr.paint()
-            cr.restore()
+        # The selector is deliberately opaque. Its background is a static
+        # frame from the authorized PipeWire stream, so it does not depend
+        # on compositor support for transparent fullscreen GTK windows.
+        self._paint_preview(cr, preview)
 
-        cr.set_operator(cairo.OPERATOR_OVER)
-        cr.set_source_rgba(0.0, 0.0, 0.0, 0.28)
+        cr.set_source_rgba(0.0, 0.0, 0.0, 0.30)
         cr.rectangle(0, 0, allocation.width, allocation.height)
         cr.fill()
 
         rect = self._rectangle()
         if rect is not None:
             x, y, width, height = rect
+            cr.save()
+            cr.rectangle(x, y, width, height)
+            cr.clip()
+            self._paint_preview(cr, preview)
+            cr.restore()
 
-            if self._rgba_overlay:
-                # Punch a clear window through the dim overlay so the user
-                # can see the exact recording area while dragging.
-                cr.save()
-                cr.set_operator(cairo.OPERATOR_CLEAR)
-                cr.rectangle(x, y, width, height)
-                cr.fill()
-                cr.restore()
-
-            cr.set_operator(cairo.OPERATOR_OVER)
             cr.set_source_rgba(1.0, 1.0, 1.0, 0.95)
             cr.rectangle(x, y, width, height)
             cr.set_line_width(2.0)
             cr.stroke()
 
+        cr.set_source_rgba(0.0, 0.0, 0.0, 0.66)
+        cr.rectangle(18, 14, 520, 42)
+        cr.fill()
         cr.set_source_rgba(1.0, 1.0, 1.0, 1.0)
-        cr.select_font_face(
-            "Sans",
-            0,
-            1,
-        )
+        cr.select_font_face("Sans", 0, 1)
         cr.set_font_size(20)
         cr.move_to(30, 42)
         cr.show_text(
@@ -189,10 +173,7 @@ class AreaSelectionWindow(Gtk.Window):
             return True
 
         x, y, width, height = rect
-        if (
-            width < self.MIN_SELECTION
-            or height < self.MIN_SELECTION
-        ):
+        if width < self.MIN_SELECTION or height < self.MIN_SELECTION:
             return True
 
         allocation = self.get_allocation()
@@ -226,7 +207,6 @@ class AreaSelectionWindow(Gtk.Window):
     def _on_delete(self, *_args):
         self._cancel()
         return True
-
 
 class MainWindow(Gtk.ApplicationWindow):
     DEVICE_POLL_SECONDS = 2
@@ -683,12 +663,50 @@ class MainWindow(Gtk.ApplicationWindow):
             config.validate()
             stream = self.recorder.prepare_area_capture(config)
             monitor = self._monitor_for_stream(stream)
+            self.set_status("Preparing area preview…")
+            self.hide()
+            # Let the compositor remove this window from the monitor before
+            # grabbing the static preview frame.
+            GLib.timeout_add(
+                300,
+                self._show_area_selector,
+                stream,
+                monitor,
+            )
+        except Exception as exc:
+            self._area_selecting = False
+            self._pending_area_config = None
+            self._area_selector = None
+            if self.recorder.preparing:
+                self.recorder.cancel_prepared_capture()
+            self.show_all()
+            self.present()
+            self._show_error(str(exc))
+            self._sync_ui()
+
+    def _show_area_selector(
+        self,
+        stream: PortalStream,
+        monitor: int,
+    ) -> bool:
+        try:
+            frame = self.recorder.capture_area_preview(stream)
+            bytes_value = GLib.Bytes.new(frame.data)
+            pixbuf = GdkPixbuf.Pixbuf.new_from_bytes(
+                bytes_value,
+                GdkPixbuf.Colorspace.RGB,
+                False,
+                8,
+                frame.width,
+                frame.height,
+                frame.rowstride,
+            )
             self.set_status(
                 "Drag to select the recording area — Esc cancels"
             )
-            self.hide()
             selector = AreaSelectionWindow(
                 monitor,
+                pixbuf,
                 self._on_area_selected,
                 self._on_area_cancelled,
             )
@@ -706,6 +724,7 @@ class MainWindow(Gtk.ApplicationWindow):
             self.present()
             self._show_error(str(exc))
             self._sync_ui()
+        return False
 
     def _on_area_selected(
         self,
