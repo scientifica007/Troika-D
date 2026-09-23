@@ -1,40 +1,38 @@
 import unittest
 
-from ubuntu_screen_recorder.portal import PortalClient
+from ubuntu_screen_recorder.portal_policy import (
+    screenshot_request_policy,
+)
 
 
-class ScreenshotOptionTests(unittest.TestCase):
-    def test_v3_supported_target_is_sent(self):
-        options, targeted = PortalClient._screenshot_options(
-            "token", 1, 3, 1 | 2 | 4 | 8
+class ScreenshotPolicyTests(unittest.TestCase):
+    def test_v3_supported_screen_target_is_noninteractive(self):
+        targeted, interactive = screenshot_request_policy(
+            1, 3, 1 | 2 | 4 | 8
         )
         self.assertTrue(targeted)
-        self.assertEqual(options["target"].unpack(), 1)
-        self.assertFalse(options["interactive"].unpack())
+        self.assertFalse(interactive)
 
-    def test_window_target_requests_interactive_selection(self):
-        options, targeted = PortalClient._screenshot_options(
-            "token", 2, 3, 1 | 2 | 4 | 8
+    def test_v3_supported_window_target_is_interactive(self):
+        targeted, interactive = screenshot_request_policy(
+            2, 3, 1 | 2 | 4 | 8
         )
         self.assertTrue(targeted)
-        self.assertEqual(options["target"].unpack(), 2)
-        self.assertTrue(options["interactive"].unpack())
+        self.assertTrue(interactive)
 
-    def test_legacy_portal_omits_v3_target_key(self):
-        options, targeted = PortalClient._screenshot_options(
-            "token", 4, 2, 0
+    def test_legacy_portal_uses_interactive_fallback(self):
+        targeted, interactive = screenshot_request_policy(
+            4, 2, 0
         )
         self.assertFalse(targeted)
-        self.assertNotIn("target", options)
-        self.assertTrue(options["interactive"].unpack())
+        self.assertTrue(interactive)
 
-    def test_unadvertised_target_falls_back_to_interactive(self):
-        options, targeted = PortalClient._screenshot_options(
-            "token", 8, 3, 1 | 2 | 4
+    def test_unadvertised_target_uses_interactive_fallback(self):
+        targeted, interactive = screenshot_request_policy(
+            8, 3, 1 | 2 | 4
         )
         self.assertFalse(targeted)
-        self.assertNotIn("target", options)
-        self.assertTrue(options["interactive"].unpack())
+        self.assertTrue(interactive)
 
 
 if __name__ == "__main__":
