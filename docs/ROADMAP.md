@@ -68,10 +68,11 @@ milestone-b/capture-completeness
 - [x] Wayland selected-area monitor/overlay preparation
 - [x] selected-area rectangle interaction
 - [x] GStreamer videocrop integration
-- [ ] selected-area first field acceptance
+- [ ] selected-area first field acceptance (capture works; selector transparency re-test pending)
 - [ ] area recording + microphone
 - [ ] area recording + webcam
-- [ ] area stop/finalization QA
+- [x] area recording + system audio
+- [x] area stop/finalization QA
 
 ### B3 — Complete X11 capture modes
 
