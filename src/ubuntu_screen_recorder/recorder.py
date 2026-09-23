@@ -493,35 +493,48 @@ class Recorder:
         self.stopping = True
         self.status_cb("Finalizing recording…")
 
-        # Prefer a pipeline-level EOS: GstBin can dispatch it across the
-        # active branches and lets queues/encoders/muxers drain in the normal
-        # order. The earlier source-first approach intermittently reached the
-        # finalization timeout in Area recordings.
-        accepted = False
-        try:
-            accepted = pipeline.send_event(Gst.Event.new_eos())
-        except Exception:
-            accepted = False
+        # Inject EOS directly downstream from every active capture source.
+        # This is more deterministic for live PipeWire/Pulse/V4L2 sources
+        # than asking the pipeline/bin to route a generic EOS event. Field
+        # testing showed that pipeline.send_event(EOS) could return True
+        # while the muxer never received EOS and finalization timed out.
+        source_results = {}
+        for name in SOURCE_NAMES:
+            source = pipeline.get_by_name(name)
+            if source is None:
+                continue
+            pad = source.get_static_pad("src")
+            if pad is None:
+                source_results[name] = False
+                continue
+            try:
+                source_results[name] = bool(
+                    pad.push_event(Gst.Event.new_eos())
+                )
+            except Exception:
+                source_results[name] = False
 
-        fallback_sources = False
+        accepted = bool(source_results) and all(
+            source_results.values()
+        )
+        pipeline_fallback = False
         if not accepted:
-            fallback_sources = True
-            for name in SOURCE_NAMES:
-                source = pipeline.get_by_name(name)
-                if source is None:
-                    continue
-                try:
-                    accepted = (
-                        source.send_event(Gst.Event.new_eos())
-                        or accepted
-                    )
-                except Exception:
-                    pass
+            pipeline_fallback = True
+            try:
+                accepted = bool(
+                    pipeline.send_event(Gst.Event.new_eos())
+                )
+            except Exception:
+                accepted = False
 
+        source_summary = ",".join(
+            f"{name}:{int(ok)}"
+            for name, ok in source_results.items()
+        ) or "none"
         print(
             "EOS request: "
-            f"pipeline={int(not fallback_sources)} "
-            f"fallback_sources={int(fallback_sources)} "
+            f"source-pads=[{source_summary}] "
+            f"pipeline-fallback={int(pipeline_fallback)} "
             f"accepted={int(accepted)}",
             flush=True,
         )
