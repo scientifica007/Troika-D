@@ -306,63 +306,82 @@ class PortalClient:
         if not session_handle:
             raise PortalError("ScreenCast portal returned no session handle")
 
-        select_token = (
-            f"select_{os.getpid()}_{GLib.get_monotonic_time()}"
-            .replace("-", "_")
-        )
-        select_options = {
-            "handle_token": GLib.Variant("s", select_token),
-            "types": GLib.Variant("u", source_types),
-            "multiple": GLib.Variant("b", False),
-            "cursor_mode": GLib.Variant("u", cursor_mode),
-        }
-        self._request(
-            SCREENCAST_IFACE,
-            "SelectSources",
-            GLib.Variant("(oa{sv})", (session_handle, select_options)),
-            select_token,
-        )
+        try:
+            select_token = (
+                f"select_{os.getpid()}_{GLib.get_monotonic_time()}"
+                .replace("-", "_")
+            )
+            select_options = {
+                "handle_token": GLib.Variant("s", select_token),
+                "types": GLib.Variant("u", source_types),
+                "multiple": GLib.Variant("b", False),
+                "cursor_mode": GLib.Variant("u", cursor_mode),
+            }
+            self._request(
+                SCREENCAST_IFACE,
+                "SelectSources",
+                GLib.Variant(
+                    "(oa{sv})",
+                    (session_handle, select_options),
+                ),
+                select_token,
+            )
 
-        start_token = (
-            f"start_{os.getpid()}_{GLib.get_monotonic_time()}"
-            .replace("-", "_")
-        )
-        start_options = {"handle_token": GLib.Variant("s", start_token)}
-        started = self._request(
-            SCREENCAST_IFACE,
-            "Start",
-            GLib.Variant(
-                "(osa{sv})", (session_handle, "", start_options)
-            ),
-            start_token,
-        )
-        streams = _unwrap(started.get("streams")) or []
-        if not streams:
-            raise PortalError("ScreenCast portal returned no streams")
+            start_token = (
+                f"start_{os.getpid()}_{GLib.get_monotonic_time()}"
+                .replace("-", "_")
+            )
+            start_options = {
+                "handle_token": GLib.Variant("s", start_token)
+            }
+            started = self._request(
+                SCREENCAST_IFACE,
+                "Start",
+                GLib.Variant(
+                    "(osa{sv})",
+                    (session_handle, "", start_options),
+                ),
+                start_token,
+            )
+            streams = _unwrap(started.get("streams")) or []
+            if not streams:
+                raise PortalError(
+                    "ScreenCast portal returned no streams"
+                )
 
-        node_id, props = streams[0]
-        node_id = int(_unwrap(node_id))
-        props = _unwrap(props) or {}
+            node_id, props = streams[0]
+            node_id = int(_unwrap(node_id))
+            props = _unwrap(props) or {}
 
-        serial_value = props.get("pipewire-serial")
-        serial_value = (
-            _unwrap(serial_value) if serial_value is not None else None
-        )
-        pipewire_serial = (
-            int(serial_value) if serial_value is not None else None
-        )
+            serial_value = props.get("pipewire-serial")
+            serial_value = (
+                _unwrap(serial_value)
+                if serial_value is not None
+                else None
+            )
+            pipewire_serial = (
+                int(serial_value)
+                if serial_value is not None
+                else None
+            )
 
-        position = _pair(props.get("position"))
-        size = _pair(props.get("size"))
-        fd = self._open_pipewire_remote(session_handle)
-        return (
-            session_handle,
-            fd,
-            node_id,
-            pipewire_serial,
-            position,
-            size,
-        )
+            position = _pair(props.get("position"))
+            size = _pair(props.get("size"))
+            fd = self._open_pipewire_remote(session_handle)
+            return (
+                session_handle,
+                fd,
+                node_id,
+                pipewire_serial,
+                position,
+                size,
+            )
+        except Exception:
+            # CreateSession succeeded, so any later cancellation/failure
+            # must explicitly close the portal session to avoid leaving a
+            # stale share session behind.
+            self.close_session(session_handle)
+            raise
 
     def _open_pipewire_remote(self, session_handle: str) -> int:
         params = GLib.Variant("(oa{sv})", (session_handle, {}))
