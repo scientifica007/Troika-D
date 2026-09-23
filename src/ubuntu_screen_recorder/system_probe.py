@@ -1,4 +1,5 @@
 import glob
+import json
 import os
 import shutil
 import subprocess
@@ -51,11 +52,53 @@ def _run(*args: str) -> str:
     return proc.stdout if proc.returncode == 0 else ""
 
 
+def _audio_sources_json() -> List[AudioSource]:
+    output = _run("pactl", "--format=json", "list", "sources")
+    if not output:
+        return []
+    try:
+        payload = json.loads(output)
+    except (json.JSONDecodeError, TypeError):
+        return []
+
+    sources: List[AudioSource] = []
+    for item in payload:
+        name = str(item.get("name") or "").strip()
+        if not name:
+            continue
+        properties = item.get("properties") or {}
+        description = (
+            item.get("description")
+            or properties.get("device.description")
+            or properties.get("device.product.name")
+            or name
+        )
+        monitor_of_sink = item.get("monitor_of_sink")
+        is_monitor = (
+            monitor_of_sink not in (None, "", False)
+            or name.endswith(".monitor")
+            or properties.get("device.class") == "monitor"
+        )
+        sources.append(
+            AudioSource(
+                name=name,
+                description=str(description),
+                is_monitor=is_monitor,
+            )
+        )
+    return sources
+
+
 def list_audio_sources() -> List[AudioSource]:
     if not shutil.which("pactl"):
         return []
+
+    sources = _audio_sources_json()
+    if sources:
+        return sources
+
     output = _run("pactl", "list", "short", "sources")
-    sources: List[AudioSource] = []
+    fallback: List[AudioSource] = []
     for line in output.splitlines():
         cols = line.split("\t")
         if len(cols) < 2:
@@ -63,8 +106,14 @@ def list_audio_sources() -> List[AudioSource]:
         if len(cols) < 2:
             continue
         name = cols[1]
-        sources.append(AudioSource(name=name, description=name, is_monitor=name.endswith(".monitor")))
-    return sources
+        fallback.append(
+            AudioSource(
+                name=name,
+                description=name,
+                is_monitor=name.endswith(".monitor"),
+            )
+        )
+    return fallback
 
 
 def default_monitor_source(sources: List[AudioSource]) -> Optional[str]:

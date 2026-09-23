@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+from typing import Iterable, Optional, Sequence, Tuple
 
 import gi
 
@@ -10,6 +11,8 @@ from .models import CaptureSource, QUALITY_PROFILES, RecordingConfig, RecordingM
 from .portal import PortalClient, PortalError
 from .recorder import Recorder
 from .system_probe import (
+    AudioSource,
+    CameraDevice,
     default_monitor_source,
     list_audio_sources,
     list_cameras,
@@ -18,6 +21,8 @@ from .system_probe import (
 
 
 class MainWindow(Gtk.ApplicationWindow):
+    DEVICE_POLL_SECONDS = 2
+
     def __init__(self, application: Gtk.Application):
         super().__init__(application=application, title="Ubuntu Screen Recorder")
         self.set_default_size(620, 560)
@@ -38,7 +43,9 @@ class MainWindow(Gtk.ApplicationWindow):
         title.set_xalign(0)
         root.pack_start(title, False, False, 0)
 
-        subtitle = Gtk.Label(label=f"Session: {self.cap.session_type.upper()}  •  Native GTK/GStreamer")
+        subtitle = Gtk.Label(
+            label=f"Session: {self.cap.session_type.upper()}  •  Native GTK/GStreamer"
+        )
         subtitle.set_xalign(0)
         root.pack_start(subtitle, False, False, 0)
 
@@ -47,7 +54,11 @@ class MainWindow(Gtk.ApplicationWindow):
         root.pack_start(grid, True, True, 0)
 
         self.mode = Gtk.ComboBoxText()
-        for key, label in (("video", "Video"), ("audio", "Audio only"), ("screenshot", "Screenshot")):
+        for key, label in (
+            ("video", "Video"),
+            ("audio", "Audio only"),
+            ("screenshot", "Screenshot"),
+        ):
             self.mode.append(key, label)
         self.mode.set_active_id("video")
         self.mode.connect("changed", self._sync_ui)
@@ -80,35 +91,21 @@ class MainWindow(Gtk.ApplicationWindow):
         self.mic_check.connect("toggled", self._sync_ui)
         grid.attach(self.mic_check, 0, 4, 1, 1)
         self.mic = Gtk.ComboBoxText()
-        for src in self.audio_sources:
-            if not src.is_monitor:
-                self.mic.append(src.name, src.description)
-        if self.mic.get_model() and len(self.mic.get_model()) > 0:
-            self.mic.set_active(0)
+        self._populate_microphones()
         grid.attach(self.mic, 1, 4, 1, 1)
 
         self.system_check = Gtk.CheckButton(label="Record system audio")
         self.system_check.connect("toggled", self._sync_ui)
         grid.attach(self.system_check, 0, 5, 1, 1)
         self.system_audio = Gtk.ComboBoxText()
-        for src in self.audio_sources:
-            if src.is_monitor:
-                self.system_audio.append(src.name, src.description)
-        default_monitor = default_monitor_source(self.audio_sources)
-        if default_monitor:
-            self.system_audio.set_active_id(default_monitor)
-        elif self.system_audio.get_model() and len(self.system_audio.get_model()) > 0:
-            self.system_audio.set_active(0)
+        self._populate_system_audio()
         grid.attach(self.system_audio, 1, 5, 1, 1)
 
         self.camera_check = Gtk.CheckButton(label="Webcam overlay")
         self.camera_check.connect("toggled", self._sync_ui)
         grid.attach(self.camera_check, 0, 6, 1, 1)
         self.camera = Gtk.ComboBoxText()
-        for cam in self.cameras:
-            self.camera.append(cam.path, f"{cam.name} ({cam.path})")
-        if self.cameras:
-            self.camera.set_active(0)
+        self._populate_cameras()
         grid.attach(self.camera, 1, 6, 1, 1)
 
         output_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
@@ -140,6 +137,13 @@ class MainWindow(Gtk.ApplicationWindow):
         self.status.set_line_wrap(True)
         root.pack_start(self.status, False, False, 0)
 
+        self._device_signature = self._make_device_signature(
+            self.audio_sources, self.cameras
+        )
+        self._device_poll_id = GLib.timeout_add_seconds(
+            self.DEVICE_POLL_SECONDS, self._poll_devices
+        )
+
         self._sync_ui()
         self.connect("delete-event", self._on_close)
 
@@ -149,6 +153,96 @@ class MainWindow(Gtk.ApplicationWindow):
         label.set_xalign(0)
         grid.attach(label, 0, row, 1, 1)
         grid.attach(widget, 1, row, 1, 1)
+
+    @staticmethod
+    def _make_device_signature(
+        audio_sources: Sequence[AudioSource],
+        cameras: Sequence[CameraDevice],
+    ) -> Tuple[Tuple[Tuple[str, str, bool], ...], Tuple[Tuple[str, str], ...]]:
+        audio = tuple(
+            (source.name, source.description, source.is_monitor)
+            for source in audio_sources
+        )
+        video = tuple((camera.path, camera.name) for camera in cameras)
+        return audio, video
+
+    @staticmethod
+    def _replace_combo(
+        combo: Gtk.ComboBoxText,
+        items: Iterable[Tuple[str, str]],
+        preferred_id: Optional[str],
+        fallback_id: Optional[str] = None,
+    ) -> None:
+        values = list(items)
+        combo.remove_all()
+        ids = []
+        for item_id, label in values:
+            combo.append(item_id, label)
+            ids.append(item_id)
+
+        if preferred_id and preferred_id in ids:
+            combo.set_active_id(preferred_id)
+        elif fallback_id and fallback_id in ids:
+            combo.set_active_id(fallback_id)
+        elif ids:
+            combo.set_active(0)
+
+    def _populate_microphones(self, preferred_id: Optional[str] = None) -> None:
+        microphones = (
+            (source.name, source.description)
+            for source in self.audio_sources
+            if not source.is_monitor
+        )
+        self._replace_combo(self.mic, microphones, preferred_id)
+
+    def _populate_system_audio(self, preferred_id: Optional[str] = None) -> None:
+        monitors = (
+            (source.name, source.description)
+            for source in self.audio_sources
+            if source.is_monitor
+        )
+        self._replace_combo(
+            self.system_audio,
+            monitors,
+            preferred_id,
+            default_monitor_source(self.audio_sources),
+        )
+
+    def _populate_cameras(self, preferred_id: Optional[str] = None) -> None:
+        cameras = (
+            (camera.path, f"{camera.name} ({camera.path})")
+            for camera in self.cameras
+        )
+        self._replace_combo(self.camera, cameras, preferred_id)
+
+    def _poll_devices(self) -> bool:
+        if self.recorder.active:
+            return True
+
+        new_audio_sources = list_audio_sources()
+        new_cameras = list_cameras()
+        signature = self._make_device_signature(new_audio_sources, new_cameras)
+        if signature == self._device_signature:
+            return True
+
+        old_mic = self.mic.get_active_id()
+        old_system_audio = self.system_audio.get_active_id()
+        old_camera = self.camera.get_active_id()
+
+        self.audio_sources = new_audio_sources
+        self.cameras = new_cameras
+        self._device_signature = signature
+
+        self._populate_microphones(old_mic)
+        self._populate_system_audio(old_system_audio)
+        self._populate_cameras(old_camera)
+
+        if not self.cameras and self.camera_check.get_active():
+            self.camera_check.set_active(False)
+
+        self.set_status("Audio/video devices updated")
+        self._sync_ui()
+        return True
 
     def set_status(self, text: str) -> None:
         GLib.idle_add(self.status.set_text, text)
@@ -166,13 +260,20 @@ class MainWindow(Gtk.ApplicationWindow):
         self.fps.set_sensitive(not recording and is_video)
         self.mic_check.set_sensitive(not recording and not is_shot)
         self.system_check.set_sensitive(not recording and not is_shot)
-        self.mic.set_sensitive(not recording and self.mic_check.get_active() and not is_shot)
+        self.mic.set_sensitive(
+            not recording and self.mic_check.get_active() and not is_shot
+        )
         self.system_audio.set_sensitive(
             not recording and self.system_check.get_active() and not is_shot
         )
-        self.camera_check.set_sensitive(not recording and is_video and bool(self.cameras))
+        self.camera_check.set_sensitive(
+            not recording and is_video and bool(self.cameras)
+        )
         self.camera.set_sensitive(
-            not recording and is_video and self.camera_check.get_active() and bool(self.cameras)
+            not recording
+            and is_video
+            and self.camera_check.get_active()
+            and bool(self.cameras)
         )
         self.pointer.set_sensitive(not recording and is_video)
         self.pause_btn.set_sensitive(recording)
@@ -187,7 +288,9 @@ class MainWindow(Gtk.ApplicationWindow):
     def _config(self) -> RecordingConfig:
         mode = RecordingMode(self.mode.get_active_id() or "video")
         source = CaptureSource(self.source.get_active_id() or "screen")
-        output = Path(self.output.get_filename() or str(Path.home() / "Videos"))
+        output = Path(
+            self.output.get_filename() or str(Path.home() / "Videos")
+        )
         return RecordingConfig(
             mode=mode,
             source=source,
@@ -195,9 +298,18 @@ class MainWindow(Gtk.ApplicationWindow):
             fps=int(self.fps.get_active_id() or "30"),
             microphone_source=self.mic.get_active_id(),
             system_audio_source=self.system_audio.get_active_id(),
-            include_microphone=self.mic_check.get_active() and mode != RecordingMode.SCREENSHOT,
-            include_system_audio=self.system_check.get_active() and mode != RecordingMode.SCREENSHOT,
-            include_camera=self.camera_check.get_active() and mode == RecordingMode.VIDEO,
+            include_microphone=(
+                self.mic_check.get_active()
+                and mode != RecordingMode.SCREENSHOT
+            ),
+            include_system_audio=(
+                self.system_check.get_active()
+                and mode != RecordingMode.SCREENSHOT
+            ),
+            include_camera=(
+                self.camera_check.get_active()
+                and mode == RecordingMode.VIDEO
+            ),
             camera_device=self.camera.get_active_id(),
             show_pointer=self.pointer.get_active(),
             output_dir=output,
@@ -207,6 +319,11 @@ class MainWindow(Gtk.ApplicationWindow):
         if self.recorder.active:
             self.recorder.stop()
             return
+
+        # One last refresh immediately before capture so a just-plugged device
+        # does not need to wait for the periodic poll.
+        self._poll_devices()
+
         config = self._config()
         if config.mode == RecordingMode.SCREENSHOT:
             self._take_screenshot(config)
@@ -238,7 +355,9 @@ class MainWindow(Gtk.ApplicationWindow):
             CaptureSource.ACTIVE_WINDOW: 8,
         }
         try:
-            path = self.portal.screenshot(targets[config.source], config.output_dir)
+            path = self.portal.screenshot(
+                targets[config.source], config.output_dir
+            )
             self.set_status(f"Screenshot saved: {path}")
         except (PortalError, Exception) as exc:
             self._show_error(str(exc))
@@ -268,13 +387,18 @@ class MainWindow(Gtk.ApplicationWindow):
         dialog.destroy()
 
     def _on_close(self, *_args):
+        if getattr(self, "_device_poll_id", None):
+            GLib.source_remove(self._device_poll_id)
+            self._device_poll_id = None
         self.recorder.force_stop()
         return False
 
 
 class ScreenRecorderApplication(Gtk.Application):
     def __init__(self):
-        super().__init__(application_id="io.github.scientifica007.UbuntuScreenRecorder")
+        super().__init__(
+            application_id="io.github.scientifica007.UbuntuScreenRecorder"
+        )
 
     def do_activate(self):
         window = self.props.active_window or MainWindow(self)

@@ -15,9 +15,16 @@
 - [x] unit tests for model/pipeline decisions
 - [x] Wayland compatibility for modern pipewire-serial and legacy portal node IDs
 - [x] clean GStreamer NULL-state teardown after startup failure
+- [x] first real Wayland full-screen recording
+- [x] first real Wayland webcam-overlay recording
+- [x] automatic idle-time microphone/camera hot-plug refresh
 
-## Milestone B — Capture completeness
+## Milestone B — Capture completeness and field hardening
 
+- [ ] validate audio-stability changes on internal microphone
+- [ ] validate audio-stability changes on USB microphone
+- [ ] validate microphone + system-audio mixing
+- [ ] validate audio-only path
 - [ ] X11 interactive window picker
 - [ ] X11 interactive region picker
 - [ ] Wayland region preview/crop workflow
