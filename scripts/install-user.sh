@@ -59,8 +59,10 @@ install -m 0644   "$ROOT_DIR/data/$APP_ID.metainfo.xml"   "$METAINFO_FILE"
 cat > "$WRAPPER" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
-export PYTHONPATH="$APP_DIR/src${PYTHONPATH:+:$PYTHONPATH}"
-exec /usr/bin/python3 -m ubuntu_screen_recorder "$@"
+APP_DIR="$APP_DIR"
+PYTHON_BIN="$PYTHON_BIN"
+export PYTHONPATH="\$APP_DIR/src\${PYTHONPATH:+:\$PYTHONPATH}"
+exec "\$PYTHON_BIN" -m ubuntu_screen_recorder "\$@"
 EOF
 chmod 0755 "$WRAPPER"
 
