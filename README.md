@@ -2,6 +2,8 @@
 
 **Lightweight screen capture for Linux.**
 
+**Current release candidate:** `v0.1.0-beta.1`
+
 Troika D is a native GTK/GStreamer desktop recorder built to stay practical on both older and newer computers. It supports Wayland through XDG Desktop Portal + PipeWire and supports X11 capture without an Electron or browser runtime.
 
 ## Current capabilities
