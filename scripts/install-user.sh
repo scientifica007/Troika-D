@@ -51,6 +51,9 @@ mkdir -p "$APP_DIR"
 
 cp -a "$ROOT_DIR/src" "$APP_DIR/"
 cp -a "$ROOT_DIR/pyproject.toml" "$APP_DIR/"
+install -m 0644 "$ROOT_DIR/LICENSE" "$APP_DIR/LICENSE"
+install -m 0644 "$ROOT_DIR/RESPONSIBLE_USE.md" "$APP_DIR/RESPONSIBLE_USE.md"
+install -m 0644 "$ROOT_DIR/TRADEMARKS.md" "$APP_DIR/TRADEMARKS.md"
 
 install -m 0644   "$ROOT_DIR/data/icons/hicolor/scalable/apps/$APP_ID.svg"   "$ICON_FILE"
 

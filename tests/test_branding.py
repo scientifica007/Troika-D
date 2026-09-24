@@ -38,9 +38,30 @@ class BrandingTests(unittest.TestCase):
         self.assertEqual(root.findtext("id"), APP_ID)
         self.assertEqual(root.findtext("name"), "Troika D")
         self.assertEqual(
+            root.findtext("project_license"),
+            "GPL-3.0-or-later",
+        )
+        self.assertEqual(
             root.findtext("launchable"),
             f"{APP_ID}.desktop",
         )
+
+    def test_repository_declares_gpl3_or_later(self):
+        license_file = ROOT / "LICENSE"
+        self.assertTrue(license_file.is_file())
+        text = license_file.read_text(encoding="utf-8")
+        self.assertTrue(text.startswith("GNU GENERAL PUBLIC LICENSE"))
+        self.assertIn("Version 3, 29 June 2007", text)
+
+        with (ROOT / "pyproject.toml").open("rb") as handle:
+            project = tomllib.load(handle)
+        self.assertIn(
+            "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+            project["project"]["classifiers"],
+        )
+
+        self.assertTrue((ROOT / "RESPONSIBLE_USE.md").is_file())
+        self.assertTrue((ROOT / "TRADEMARKS.md").is_file())
 
     def test_scalable_icon_exists_with_product_title(self):
         icon = (

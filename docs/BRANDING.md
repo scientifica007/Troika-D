@@ -31,3 +31,16 @@ The icon must remain recognizable at small desktop-launcher sizes and must not r
 The Troika D rebrand has passed CI and field smoke testing and is merged into `main`. Future branding or packaging changes must remain isolated from the field-tested recording pipeline and pass regression checks before merge.
 
 The repository is now `scientifica007/Troika-D`. The internal Python module remains `ubuntu_screen_recorder` for compatibility and to minimize unnecessary runtime risk. Product-facing identity is Troika D.
+
+
+## Licensing and marks
+
+Troika D source code is distributed under **GPL-3.0-or-later** unless a file states otherwise.
+
+The software license and the product identity are separate:
+
+- GPL rights govern the source code and software materials;
+- `RESPONSIBLE_USE.md` records non-binding project values and does not add restrictions to the GPL;
+- `TRADEMARKS.md` governs use of the Troika D name, official logo, and visual identity where trademark law applies.
+
+See `LICENSE`, `RESPONSIBLE_USE.md`, and `TRADEMARKS.md` at the repository root.

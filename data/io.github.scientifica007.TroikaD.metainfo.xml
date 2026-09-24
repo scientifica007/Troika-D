@@ -4,6 +4,7 @@
   <name>Troika D</name>
   <summary>Lightweight screen capture for Linux</summary>
   <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
   <description>
     <p>
       Troika D is a native GTK/GStreamer screen recorder designed to remain
