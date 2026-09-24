@@ -25,4 +25,11 @@
     <category>Graphics</category>
   </categories>
   <url type="homepage">https://github.com/scientifica007/Troika-D</url>
+  <releases>
+    <release version="0.1.0-beta.1" date="2026-09-24">
+      <description>
+        <p>First public beta of Troika D.</p>
+      </description>
+    </release>
+  </releases>
 </component>
