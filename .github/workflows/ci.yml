@@ -18,7 +18,7 @@ jobs:
       - name: Install native GI smoke-test dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-gi python3-cairo gir1.2-gtk-3.0 gir1.2-gstreamer-1.0
+          sudo apt-get install -y python3-gi python3-cairo gir1.2-gtk-3.0 gir1.2-gstreamer-1.0 desktop-file-utils appstream
       - name: Native GTK/GDK import smoke test
         run: |
           PYTHONPATH=src /usr/bin/python3 -c "import ubuntu_screen_recorder.app"
@@ -37,6 +37,22 @@ jobs:
             exit 1
           fi
           bash scripts/uninstall-user.sh
+      - name: Desktop metadata validation
+        run: |
+          desktop-file-validate data/io.github.scientifica007.TroikaD.desktop
+          appstreamcli validate --no-net data/io.github.scientifica007.TroikaD.metainfo.xml
+      - name: Build release artifacts
+        run: |
+          python -m pip install --upgrade build
+          python -m build
+          python - <<'PY'
+          from pathlib import Path
+          wheels = list(Path("dist").glob("troika_d-0.1.0b1-*.whl"))
+          sdists = list(Path("dist").glob("troika_d-0.1.0b1.tar.gz"))
+          if len(wheels) != 1 or len(sdists) != 1:
+              raise SystemExit(f"Unexpected release artifacts: wheels={wheels}, sdists={sdists}")
+          print("Release artifact build: PASS")
+          PY
       - name: Syntax check
         run: |
           python -m compileall -q src tests
