@@ -5,11 +5,11 @@
 - [x] Unit tests.
 - [x] Native GTK/GDK import smoke test.
 - [x] User-local install → verify → uninstall smoke cycle.
-- [ ] Desktop file validation.
-- [ ] AppStream validation.
-- [ ] Python wheel build.
-- [ ] Python source-distribution build.
-- [ ] Release metadata consistency test.
+- [x] Desktop file validation — CI #240.
+- [x] AppStream validation — CI #240.
+- [x] Python wheel build — CI #240.
+- [x] Python source-distribution build — CI #240.
+- [x] Release metadata consistency test — CI #240.
 
 ## Human release-candidate gate
 
