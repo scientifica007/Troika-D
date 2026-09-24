@@ -37,11 +37,11 @@ Wayland recording also requires a working PipeWire + desktop portal backend.
 
 ## Run from source
 
-The repository still carries its historical development name while the Troika D rebrand is being validated:
+Clone the Troika D repository and run from source:
 
 ```bash
-git clone https://github.com/scientifica007/Ubuntu_Screen_Recorder.git
-cd Ubuntu_Screen_Recorder
+git clone https://github.com/scientifica007/Troika-D.git
+cd Troika-D
 PYTHONPATH=src python3 -m ubuntu_screen_recorder
 ```
 
@@ -67,4 +67,4 @@ The internal Python module remains `ubuntu_screen_recorder` during the rebrand v
 
 The UI does not own capture logic. Device discovery, portal handling, recording orchestration, and GStreamer pipeline construction are separate layers so the interface and backends can evolve independently.
 
-See `docs/ARCHITECTURE.md), `docs/ROADMAP.md), and the field-test documents for the current validated state.
+See `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, and the field-test documents for the current validated state.
