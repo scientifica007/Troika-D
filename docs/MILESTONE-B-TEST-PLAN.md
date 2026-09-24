@@ -806,7 +806,7 @@ Result:
 
 - the same background noise is present;
 - perceived noise intensity is similar to Ubuntu Screen Recorder, Kooha, and historical Kazam recordings;
-- therefore the noise is reproducible below the application/GStreamer/PipeWire layer and is not attributed to Ubuntu Screen Recorder.
+- therefore the noise is reproducible below the application/GStreamer/PipeWire layer and is not attributed to Troika D.
 
 Hardware capability probe:
 
@@ -853,7 +853,7 @@ Internal Mic Boost = 0/3 = 0.00 dB
 After this correction:
 
 - direct `arecord -D default` recording became substantially clearer;
-- Ubuntu Screen Recorder recording with the built-in microphone also became good;
+- Troika D recording with the built-in microphone also became good;
 - no recorder capture-pipeline change was required.
 
 Application re-test:

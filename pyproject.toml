@@ -3,9 +3,9 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ubuntu-screen-recorder"
+name = "troika-d"
 version = "0.1.0"
-description = "A lightweight native screen recorder for Ubuntu/X11/Wayland"
+description = "Lightweight screen capture for Linux"
 requires-python = ">=3.8"
 authors = [{name = "Scientifica"}]
 classifiers = [
@@ -15,10 +15,15 @@ classifiers = [
 ]
 
 [project.scripts]
-ubuntu-screen-recorder = "ubuntu_screen_recorder.app:main"
+troika-d = "ubuntu_screen_recorder.app:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.data-files]
+"share/applications" = ["data/io.github.scientifica007.TroikaD.desktop"]
+"share/metainfo" = ["data/io.github.scientifica007.TroikaD.metainfo.xml"]
+"share/icons/hicolor/scalable/apps" = ["data/icons/hicolor/scalable/apps/io.github.scientifica007.TroikaD.svg"]

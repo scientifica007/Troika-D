@@ -29,6 +29,11 @@ from .system_probe import (
 )
 
 
+APP_NAME = "Troika D"
+APP_ID = "io.github.scientifica007.TroikaD"
+APP_ICON_NAME = APP_ID
+
+
 class AreaSelectionWindow(Gtk.Window):
     MIN_SELECTION = 20
 
@@ -222,8 +227,9 @@ class MainWindow(Gtk.ApplicationWindow):
     DEVICE_POLL_SECONDS = 2
 
     def __init__(self, application: Gtk.Application):
-        super().__init__(application=application, title="Ubuntu Screen Recorder")
+        super().__init__(application=application, title=APP_NAME)
         self.set_default_size(620, 560)
+        self.set_icon_name(APP_ICON_NAME)
         self.set_border_width(18)
 
         self.cap = probe_capabilities()
@@ -249,7 +255,7 @@ class MainWindow(Gtk.ApplicationWindow):
         self.add(root)
 
         title = Gtk.Label()
-        title.set_markup("<span size='x-large' weight='bold'>Ubuntu Screen Recorder</span>")
+        title.set_markup(f"<span size='x-large' weight='bold'>{APP_NAME}</span>")
         title.set_xalign(0)
         root.pack_start(title, False, False, 0)
 
@@ -878,7 +884,7 @@ class MainWindow(Gtk.ApplicationWindow):
             flags=0,
             message_type=Gtk.MessageType.ERROR,
             buttons=Gtk.ButtonsType.CLOSE,
-            text="Ubuntu Screen Recorder",
+            text=APP_NAME,
         )
         dialog.format_secondary_text(text)
         dialog.run()
@@ -918,7 +924,7 @@ class MainWindow(Gtk.ApplicationWindow):
 class ScreenRecorderApplication(Gtk.Application):
     def __init__(self):
         super().__init__(
-            application_id="io.github.scientifica007.UbuntuScreenRecorder"
+            application_id=APP_ID
         )
 
     def do_activate(self):
