@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP_ID="io.github.scientifica007.TroikaD"
+PKG_NAME="troika-d"
+DEB_VERSION="${TROIKA_D_DEB_VERSION:-0.1.0~beta1-1}"
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+OUT_DIR="${1:-$ROOT_DIR/dist-deb}"
+STAGE="$(mktemp -d)"
+trap 'rm -rf "$STAGE"' EXIT
+
+PKG_ROOT="$STAGE/$PKG_NAME"
+CONTROL_DIR="$PKG_ROOT/DEBIAN"
+
+mkdir -p   "$CONTROL_DIR"   "$PKG_ROOT/usr/bin"   "$PKG_ROOT/usr/lib/troika-d"   "$PKG_ROOT/usr/share/applications"   "$PKG_ROOT/usr/share/metainfo"   "$PKG_ROOT/usr/share/icons/hicolor/scalable/apps"   "$PKG_ROOT/usr/share/doc/troika-d"
+
+cp -a "$ROOT_DIR/src/ubuntu_screen_recorder"   "$PKG_ROOT/usr/lib/troika-d/ubuntu_screen_recorder"
+
+install -m 0644   "$ROOT_DIR/data/$APP_ID.desktop"   "$PKG_ROOT/usr/share/applications/$APP_ID.desktop"
+
+install -m 0644   "$ROOT_DIR/data/$APP_ID.metainfo.xml"   "$PKG_ROOT/usr/share/metainfo/$APP_ID.metainfo.xml"
+
+install -m 0644   "$ROOT_DIR/data/icons/hicolor/scalable/apps/$APP_ID.svg"   "$PKG_ROOT/usr/share/icons/hicolor/scalable/apps/$APP_ID.svg"
+
+install -m 0644 "$ROOT_DIR/LICENSE" "$PKG_ROOT/usr/share/doc/troika-d/LICENSE"
+install -m 0644 "$ROOT_DIR/RESPONSIBLE_USE.md" "$PKG_ROOT/usr/share/doc/troika-d/RESPONSIBLE_USE.md"
+install -m 0644 "$ROOT_DIR/TRADEMARKS.md" "$PKG_ROOT/usr/share/doc/troika-d/TRADEMARKS.md"
+install -m 0644 "$ROOT_DIR/CHANGELOG.md" "$PKG_ROOT/usr/share/doc/troika-d/CHANGELOG.md"
+
+cat > "$PKG_ROOT/usr/bin/troika-d" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+export PYTHONPATH="/usr/lib/troika-d${PYTHONPATH:+:$PYTHONPATH}"
+exec /usr/bin/python3 -m ubuntu_screen_recorder "$@"
+EOF
+chmod 0755 "$PKG_ROOT/usr/bin/troika-d"
+
+cat > "$CONTROL_DIR/control" <<EOF
+Package: troika-d
+Version: $DEB_VERSION
+Section: video
+Priority: optional
+Architecture: all
+Maintainer: Scientifica <scientifica007@users.noreply.github.com>
+Homepage: https://github.com/scientifica007/Troika-D
+Depends: python3 (>= 3.8), python3-gi, gir1.2-gtk-3.0, gir1.2-gstreamer-1.0, gstreamer1.0-plugins-base, gstreamer1.0-plugins-good, gstreamer1.0-plugins-bad, gstreamer1.0-plugins-ugly, gstreamer1.0-libav, xdg-desktop-portal, pulseaudio-utils
+Recommends: pipewire, xdg-desktop-portal-gnome | xdg-desktop-portal-gtk
+Description: lightweight screen capture for Linux
+ Troika D is a native GTK/GStreamer screen recorder supporting full-screen,
+ window and selected-area recording, microphone and system audio, webcam
+ overlay, screenshots, Pause/Resume, and Wayland portal capture.
+EOF
+
+cat > "$CONTROL_DIR/postinst" <<'EOF'
+#!/bin/sh
+set -e
+if command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
+fi
+if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+    gtk-update-icon-cache -f -t /usr/share/icons/hicolor >/dev/null 2>&1 || true
+fi
+exit 0
+EOF
+chmod 0755 "$CONTROL_DIR/postinst"
+
+cat > "$CONTROL_DIR/postrm" <<'EOF'
+#!/bin/sh
+set -e
+if command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
+fi
+if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+    gtk-update-icon-cache -f -t /usr/share/icons/hicolor >/dev/null 2>&1 || true
+fi
+exit 0
+EOF
+chmod 0755 "$CONTROL_DIR/postrm"
+
+mkdir -p "$OUT_DIR"
+OUT="$OUT_DIR/${PKG_NAME}_${DEB_VERSION}_all.deb"
+
+dpkg-deb --build --root-owner-group "$PKG_ROOT" "$OUT" >/dev/null
+
+echo "$OUT"
