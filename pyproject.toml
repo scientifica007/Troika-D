@@ -12,6 +12,7 @@ classifiers = [
   "Environment :: X11 Applications :: GTK",
   "Operating System :: POSIX :: Linux",
   "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
 ]
 
 [project.scripts]
