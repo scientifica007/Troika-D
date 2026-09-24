@@ -37,6 +37,17 @@ sudo apt install -y \
 
 Wayland recording also requires a working PipeWire + desktop portal backend.
 
+## Install with a Debian package
+
+Troika D can also be built as a native `.deb` package for Ubuntu/Debian:
+
+```bash
+bash scripts/build-deb.sh
+sudo apt install ./dist-deb/troika-d_0.1.0~beta1-1_all.deb
+```
+
+See `packaging/DEB.md` for build, verification, removal, and package-layout details.
+
 ## Install for the current user
 
 Troika D includes a reversible user-local desktop installer. It does not require `sudo` and does not modify system directories.
