@@ -8,5 +8,5 @@ Icon=io.github.scientifica007.TroikaD
 Terminal=false
 StartupNotify=true
 StartupWMClass=io.github.scientifica007.TroikaD
-Categories=AudioVideo;Recorder;Graphics;Utility;
+Categories=AudioVideo;Graphics;Utility;
 Keywords=screen;record;recorder;capture;screenshot;audio;video;wayland;x11;
