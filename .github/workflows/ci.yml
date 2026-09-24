@@ -31,6 +31,11 @@ jobs:
           mkdir -p "$HOME"
           bash scripts/install-user.sh
           bash scripts/verify-user-install.sh
+          grep -F 'exec "$PYTHON_BIN" -m ubuntu_screen_recorder "$@"' "$HOME/.local/bin/troika-d"
+          if grep -F 'ubuntu_screen_recorder ""' "$HOME/.local/bin/troika-d"; then
+            echo "Generated launcher contains an install-time-expanded empty argument" >&2
+            exit 1
+          fi
           bash scripts/uninstall-user.sh
       - name: Syntax check
         run: |
