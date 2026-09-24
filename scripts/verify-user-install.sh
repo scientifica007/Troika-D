@@ -10,6 +10,9 @@ files=(
   "$DATA_HOME/icons/hicolor/scalable/apps/$APP_ID.svg"
   "$DATA_HOME/metainfo/$APP_ID.metainfo.xml"
   "$DATA_HOME/troika-d/app/src/ubuntu_screen_recorder/__main__.py"
+  "$DATA_HOME/troika-d/app/LICENSE"
+  "$DATA_HOME/troika-d/app/RESPONSIBLE_USE.md"
+  "$DATA_HOME/troika-d/app/TRADEMARKS.md"
 )
 
 missing=0
