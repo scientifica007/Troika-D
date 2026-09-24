@@ -37,6 +37,8 @@ First public beta.
 
 ### Known limitations
 
+- **PERF-002:** on the primary Ubuntu/Wayland low-resource machine, Window capture with Webcam overlay enabled at Balanced 15 FPS or 30 FPS can produce green corruption and severe stutter in the recorded screen stream. The same Window configurations with Webcam disabled pass, and Area + Webcam at Balanced 30 FPS passes. Workaround for beta 1: disable Webcam in Window mode, or use Area/Full Screen when Webcam is required.
+
 - X11 has not received the same complete field-test matrix as the primary Wayland environment.
 - Screenshot behavior depends on the desktop portal implementation; on the tested Portal v2 system, Ubuntu owns the interactive target selection and saves screenshots under the system screenshot folder.
 - Capture smoothness depends on hardware, compositor, selected FPS, source type, and content motion.
