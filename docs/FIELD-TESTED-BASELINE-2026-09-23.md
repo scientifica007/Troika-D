@@ -1,6 +1,8 @@
 # Field-Tested Baseline — 2026-09-23
 
-Repository: `scientifica007/Ubuntu_Screen_Recorder`
+Repository: `scientifica007/Troika-D`
+
+Historical repository name at the time of early development: `scientifica007/Ubuntu_Screen_Recorder`
 
 Development branch at time of freeze:
 
