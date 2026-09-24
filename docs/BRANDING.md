@@ -28,6 +28,6 @@ The icon must remain recognizable at small desktop-launcher sizes and must not r
 
 ## Implementation policy
 
-The field-tested recording baseline is not modified directly. Rebranding is developed on `rebrand/troika-d` and must pass startup, Full Screen, Window, Area, audio, webcam, screenshot, pause/resume, cancel, and finalization regression checks before merge.
+The Troika D rebrand has passed CI and field smoke testing and is merged into `main`. Future branding or packaging changes must remain isolated from the field-tested recording pipeline and pass regression checks before merge.
 
-The internal Python module remains `ubuntu_screen_recorder` during the first rebrand pass to minimize runtime risk. Product-facing identity is Troika D.
+The repository is now `scientifica007/Troika-D`. The internal Python module remains `ubuntu_screen_recorder` for compatibility and to minimize unnecessary runtime risk. Product-facing identity is Troika D.
