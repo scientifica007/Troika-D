@@ -11,17 +11,17 @@ license = {file = "LICENSE"}
 requires-python = ">=3.8"
 authors = [{name = "Scientifica"}]
 
-[project.urls]
-Homepage = "https://github.com/scientifica007/Troika-D"
-Repository = "https://github.com/scientifica007/Troika-D"
-Issues = "https://github.com/scientifica007/Troika-D/issues"
-
 classifiers = [
   "Environment :: X11 Applications :: GTK",
   "Operating System :: POSIX :: Linux",
   "Programming Language :: Python :: 3",
   "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
 ]
+
+[project.urls]
+Homepage = "https://github.com/scientifica007/Troika-D"
+Repository = "https://github.com/scientifica007/Troika-D"
+Issues = "https://github.com/scientifica007/Troika-D/issues"
 
 [project.scripts]
 troika-d = "ubuntu_screen_recorder.app:main"
