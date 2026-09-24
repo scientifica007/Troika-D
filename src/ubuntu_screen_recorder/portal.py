@@ -9,6 +9,11 @@ import gi
 gi.require_version("Gio", "2.0")
 from gi.repository import Gio, GLib
 
+from .portal_policy import (
+    screenshot_request_policy,
+    screenshot_result_is_app_managed,
+)
+
 
 BUS_NAME = "org.freedesktop.portal.Desktop"
 OBJECT_PATH = "/org/freedesktop/portal/desktop"
@@ -16,14 +21,35 @@ REQUEST_IFACE = "org.freedesktop.portal.Request"
 SESSION_IFACE = "org.freedesktop.portal.Session"
 SCREENSHOT_IFACE = "org.freedesktop.portal.Screenshot"
 SCREENCAST_IFACE = "org.freedesktop.portal.ScreenCast"
+PROPERTIES_IFACE = "org.freedesktop.DBus.Properties"
 
 
 class PortalError(RuntimeError):
-    pass
+    def __init__(
+        self,
+        message: str,
+        code: Optional[int] = None,
+        results: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+        self.results = results or {}
 
 
 def _unwrap(value):
     return value.unpack() if isinstance(value, GLib.Variant) else value
+
+
+def _pair(value) -> Optional[Tuple[int, int]]:
+    if value is None:
+        return None
+    value = _unwrap(value)
+    if not isinstance(value, (tuple, list)) or len(value) != 2:
+        return None
+    try:
+        return int(_unwrap(value[0])), int(_unwrap(value[1]))
+    except (TypeError, ValueError):
+        return None
 
 
 class PortalClient:
@@ -94,26 +120,146 @@ class PortalClient:
         if response.get("code") != 0:
             raise PortalError(
                 f"Portal request {method} was cancelled or failed "
-                f"(code={response.get('code')})"
+                f"(code={response.get('code')})",
+                code=response.get("code"),
+                results=response.get("results", {}),
             )
         return response.get("results", {})
 
-    def screenshot(self, target: int, destination_dir: Path) -> Path:
+    def _property(
+        self,
+        interface: str,
+        name: str,
+        default: Any = None,
+    ) -> Any:
+        try:
+            result = self.bus.call_sync(
+                BUS_NAME,
+                OBJECT_PATH,
+                PROPERTIES_IFACE,
+                "Get",
+                GLib.Variant("(ss)", (interface, name)),
+                GLib.VariantType.new("(v)"),
+                Gio.DBusCallFlags.NONE,
+                2000,
+                None,
+            )
+        except GLib.Error:
+            return default
+
+        value = result.unpack()[0]
+        return _unwrap(value)
+
+    def screenshot_capabilities(self) -> Tuple[int, int]:
+        version = int(
+            self._property(SCREENSHOT_IFACE, "version", 0) or 0
+        )
+        targets = int(
+            self._property(
+                SCREENSHOT_IFACE,
+                "AvailableTargets",
+                0,
+            )
+            or 0
+        )
+        return version, targets
+
+    @staticmethod
+    def _screenshot_options(
+        token: str,
+        target: int,
+        version: int,
+        available_targets: int,
+    ) -> Tuple[Dict[str, GLib.Variant], bool]:
+        targeted, interactive = screenshot_request_policy(
+            target,
+            version,
+            available_targets,
+        )
+        options: Dict[str, GLib.Variant] = {
+            "handle_token": GLib.Variant("s", token),
+            "interactive": GLib.Variant(
+                "b", interactive
+            ),
+        }
+        if targeted:
+            options["target"] = GLib.Variant("u", target)
+        return options, targeted
+
+    def screenshot(
+        self, target: int, destination_dir: Path
+    ) -> Optional[Path]:
+        version, available_targets = self.screenshot_capabilities()
         token = (
             f"shot_{os.getpid()}_{GLib.get_monotonic_time()}"
             .replace("-", "_")
         )
-        options = {
-            "handle_token": GLib.Variant("s", token),
-            "interactive": GLib.Variant("b", True),
-            "target": GLib.Variant("u", target),
-        }
-        results = self._request(
-            SCREENSHOT_IFACE,
-            "Screenshot",
-            GLib.Variant("(sa{sv})", ("", options)),
+        options, targeted = self._screenshot_options(
             token,
+            target,
+            version,
+            available_targets,
         )
+
+        print(
+            "Screenshot portal: "
+            f"version={version}, "
+            f"available-targets=0x{available_targets:x}, "
+            f"requested={target}, targeted={targeted}",
+            flush=True,
+        )
+
+        try:
+            results = self._request(
+                SCREENSHOT_IFACE,
+                "Screenshot",
+                GLib.Variant("(sa{sv})", ("", options)),
+                token,
+            )
+        except PortalError as exc:
+            if not screenshot_result_is_app_managed(version):
+                # GNOME/Ubuntu Screenshot portal v2 delegates storage to
+                # the system screenshot tool. It may return code=2 or a
+                # usable URI after the system tool has already persisted
+                # the screenshot. In either case, do not copy that URI:
+                # doing so creates duplicate files in the app's Save-to
+                # folder and the system Screenshots folder.
+                if exc.code == 2 or exc.results.get("uri"):
+                    return None
+                raise
+
+            # Portal v3+ may return a usable URI with a non-zero response.
+            if exc.results.get("uri"):
+                results = exc.results
+            elif targeted:
+                # Compatibility fallback for a v3 backend that advertised
+                # a target but rejected the target-specific request.
+                retry_token = (
+                    f"shot_retry_{os.getpid()}_"
+                    f"{GLib.get_monotonic_time()}"
+                ).replace("-", "_")
+                retry_options = {
+                    "handle_token": GLib.Variant(
+                        "s", retry_token
+                    ),
+                    "interactive": GLib.Variant("b", True),
+                }
+                results = self._request(
+                    SCREENSHOT_IFACE,
+                    "Screenshot",
+                    GLib.Variant(
+                        "(sa{sv})", ("", retry_options)
+                    ),
+                    retry_token,
+                )
+            else:
+                raise
+
+        if not screenshot_result_is_app_managed(version):
+            # Successful portal-v2 responses can also include a URI, but
+            # Ubuntu has already saved the screenshot. Avoid a second copy.
+            return None
+
         uri = results.get("uri")
         if not uri:
             raise PortalError("Screenshot portal returned no URI")
@@ -130,7 +276,14 @@ class PortalClient:
 
     def create_screencast(
         self, source_types: int = 3, cursor_mode: int = 2
-    ) -> Tuple[str, int, int, Optional[int]]:
+    ) -> Tuple[
+        str,
+        int,
+        int,
+        Optional[int],
+        Optional[Tuple[int, int]],
+        Optional[Tuple[int, int]],
+    ]:
         create_token = (
             f"create_{os.getpid()}_{GLib.get_monotonic_time()}"
             .replace("-", "_")
@@ -153,54 +306,86 @@ class PortalClient:
         if not session_handle:
             raise PortalError("ScreenCast portal returned no session handle")
 
-        select_token = (
-            f"select_{os.getpid()}_{GLib.get_monotonic_time()}"
-            .replace("-", "_")
-        )
-        select_options = {
-            "handle_token": GLib.Variant("s", select_token),
-            "types": GLib.Variant("u", source_types),
-            "multiple": GLib.Variant("b", False),
-            "cursor_mode": GLib.Variant("u", cursor_mode),
-        }
-        self._request(
-            SCREENCAST_IFACE,
-            "SelectSources",
-            GLib.Variant("(oa{sv})", (session_handle, select_options)),
-            select_token,
-        )
+        try:
+            select_token = (
+                f"select_{os.getpid()}_{GLib.get_monotonic_time()}"
+                .replace("-", "_")
+            )
+            select_options = {
+                "handle_token": GLib.Variant("s", select_token),
+                "types": GLib.Variant("u", source_types),
+                "multiple": GLib.Variant("b", False),
+                "cursor_mode": GLib.Variant("u", cursor_mode),
+            }
+            self._request(
+                SCREENCAST_IFACE,
+                "SelectSources",
+                GLib.Variant(
+                    "(oa{sv})",
+                    (session_handle, select_options),
+                ),
+                select_token,
+            )
 
-        start_token = (
-            f"start_{os.getpid()}_{GLib.get_monotonic_time()}"
-            .replace("-", "_")
-        )
-        start_options = {"handle_token": GLib.Variant("s", start_token)}
-        started = self._request(
-            SCREENCAST_IFACE,
-            "Start",
-            GLib.Variant(
-                "(osa{sv})", (session_handle, "", start_options)
-            ),
-            start_token,
-        )
-        streams = _unwrap(started.get("streams")) or []
-        if not streams:
-            raise PortalError("ScreenCast portal returned no streams")
+            start_token = (
+                f"start_{os.getpid()}_{GLib.get_monotonic_time()}"
+                .replace("-", "_")
+            )
+            start_options = {
+                "handle_token": GLib.Variant("s", start_token)
+            }
+            started = self._request(
+                SCREENCAST_IFACE,
+                "Start",
+                GLib.Variant(
+                    "(osa{sv})",
+                    (session_handle, "", start_options),
+                ),
+                start_token,
+            )
+            streams = _unwrap(started.get("streams")) or []
+            if not streams:
+                raise PortalError(
+                    "ScreenCast portal returned no streams"
+                )
 
-        node_id, props = streams[0]
-        node_id = int(_unwrap(node_id))
-        props = _unwrap(props) or {}
+            node_id, props = streams[0]
+            node_id = int(_unwrap(node_id))
+            props = _unwrap(props) or {}
 
-        serial_value = props.get("pipewire-serial")
-        serial_value = (
-            _unwrap(serial_value) if serial_value is not None else None
-        )
-        pipewire_serial = (
-            int(serial_value) if serial_value is not None else None
-        )
+            serial_value = props.get("pipewire-serial")
+            serial_value = (
+                _unwrap(serial_value)
+                if serial_value is not None
+                else None
+            )
+            pipewire_serial = (
+                int(serial_value)
+                if serial_value is not None
+                else None
+            )
 
-        fd = self._open_pipewire_remote(session_handle)
-        return session_handle, fd, node_id, pipewire_serial
+            position = _pair(props.get("position"))
+            size = _pair(props.get("size"))
+            fd = self._open_pipewire_remote(session_handle)
+            return (
+                session_handle,
+                fd,
+                node_id,
+                pipewire_serial,
+                position,
+                size,
+            )
+        except Exception:
+            # CreateSession succeeded, so any later cancellation/failure
+            # must explicitly close the portal session to avoid leaving a
+            # stale share session behind.
+            self.close_session(session_handle)
+            raise
+
+    def open_pipewire_remote(self, session_handle: str) -> int:
+        """Open an additional PipeWire remote for an existing session."""
+        return self._open_pipewire_remote(session_handle)
 
     def _open_pipewire_remote(self, session_handle: str) -> int:
         params = GLib.Variant("(oa{sv})", (session_handle, {}))

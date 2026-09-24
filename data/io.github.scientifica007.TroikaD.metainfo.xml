@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.scientifica007.TroikaD</id>
+  <name>Troika D</name>
+  <summary>Lightweight screen capture for Linux</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <description>
+    <p>
+      Troika D is a native GTK/GStreamer screen recorder designed to remain
+      practical on both older and newer Linux computers.
+    </p>
+    <p>
+      It records full-screen, window, and selected-area video with optional
+      microphone, system audio, and webcam overlay, and it can take interactive
+      screenshots through the desktop portal.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.github.scientifica007.TroikaD.desktop</launchable>
+  <provides>
+    <binary>troika-d</binary>
+  </provides>
+  <categories>
+    <category>AudioVideo</category>
+    <category>Graphics</category>
+  </categories>
+  <url type="homepage">https://github.com/scientifica007/Ubuntu_Screen_Recorder</url>
+</component>

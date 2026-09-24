@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from .models import RecordingConfig, RecordingMode
+from .models import CaptureSource, RecordingConfig, RecordingMode
 
 
 AUDIO_BUFFER_US = 500_000
@@ -21,6 +21,8 @@ class PortalStream:
     fd: int
     node_id: int
     pipewire_serial: Optional[int] = None
+    position: Optional[Tuple[int, int]] = None
+    size: Optional[Tuple[int, int]] = None
 
 
 @dataclass(frozen=True)
@@ -186,14 +188,59 @@ def build_video_pipeline(
             f"show-pointer={'true' if config.show_pointer else 'false'}"
         )
 
-    video_chain = (
-        f"{video_src} ! "
-        f"{_queue('video_capture_q', VIDEO_CAPTURE_QUEUE_NS, 'downstream')} ! "
-        "videoconvert ! videorate ! "
-        f"video/x-raw,framerate={config.fps}/1 ! videoscale ! "
+    # Use the stable constant-frame-rate path for all capture sources.
+    # A Window-only drop-only/max-rate experiment was reverted after
+    # GStreamer 1.x aborted in videorate when PipeWire supplied a buffer
+    # without a valid duration (GST_BUFFER_DURATION_IS_VALID assertion).
+    area_stage = ""
+    if config.source == CaptureSource.AREA:
+        if config.crop is None:
+            raise ValueError(
+                "Selected-area recording needs a crop rectangle"
+            )
+        # The crop margins are resolved later from the actual negotiated
+        # PipeWire caps. Keep the gate closed until Recorder configures
+        # videocrop, so no full-screen frame can leak into the output.
+        area_stage = (
+            "videocrop name=area_crop ! "
+            "valve name=area_gate drop=true ! "
+        )
+
+    # PERF-001 v3: on Wayland Window streams, reduce frame rate before
+    # the expensive RGB/YUV colour conversion. The previous stable layout
+    # converted every incoming compositor frame to I420 before videorate
+    # discarded frames down to the requested FPS. On the low-power field
+    # machine that can waste substantial CPU during motion-heavy Window
+    # capture.
+    #
+    # Full Screen and Area keep the protected field-tested element order.
+    # This still uses ordinary videorate; the rejected drop-only/max-rate
+    # mode and the rejected no-videorate caps experiment are not used.
+    early_window_rate = (
+        session_type == "wayland"
+        and config.source in (
+            CaptureSource.WINDOW,
+            CaptureSource.ACTIVE_WINDOW,
+        )
     )
-    if config.quality.scale_percent != 100:
-        video_chain += "videoconvert ! "
+
+    if early_window_rate:
+        video_chain = (
+            f"{video_src} ! "
+            f"{_queue('video_capture_q', VIDEO_CAPTURE_QUEUE_NS, 'downstream')} ! "
+            "videorate name=video_rate skip-to-first=true ! "
+            f"video/x-raw,framerate={config.fps}/1 ! "
+            "videoconvert ! video/x-raw,format=I420 ! videoscale ! "
+        )
+    else:
+        video_chain = (
+            f"{video_src} ! "
+            f"{_queue('video_capture_q', VIDEO_CAPTURE_QUEUE_NS, 'downstream')} ! "
+            f"{area_stage}"
+            "videoconvert ! video/x-raw,format=I420 ! "
+            "videorate name=video_rate skip-to-first=true ! "
+            f"video/x-raw,framerate={config.fps}/1 ! videoscale ! "
+        )
 
     video_mux_queue = _queue("video_mux_q", VIDEO_MUX_QUEUE_NS)
 
@@ -209,7 +256,8 @@ def build_video_pipeline(
         main_video = (
             screen_branch
             + cam_branch
-            + "compositor name=comp sink_1::xpos=20 "
+            + "compositor name=comp background=black "
+            "start-time-selection=first sink_1::xpos=20 "
             "sink_1::ypos=20 ! videoconvert ! "
             + f"{enc} ! {parser} ! {video_mux_queue} ! mux. "
         )

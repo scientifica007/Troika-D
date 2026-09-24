@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Troika D</title>
+  <desc id="desc">Three capture arcs around a recording point, representing screen, audio and camera capture.</desc>
+  <rect width="512" height="512" rx="112" fill="#0B1526"/>
+  <path d="M256 82c-66 0-126 23-173 62l45 55c35-29 79-45 128-45V82z" fill="#2AA7FF"/>
+  <path d="M419 179c33 56 39 123 16 184l-68-25c16-43 12-91-11-131l63-28z" fill="#22D1C3"/>
+  <path d="M327 426c-63 18-132 7-185-31l41-58c39 27 88 35 133 22l11 67z" fill="#6F79FF"/>
+  <circle cx="256" cy="256" r="76" fill="#111F34"/>
+  <circle cx="256" cy="256" r="44" fill="#FF5B61"/>
+  <circle cx="241" cy="241" r="12" fill="#FF9094" opacity=".72"/>
+</svg>

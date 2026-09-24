@@ -4,11 +4,20 @@ from typing import Iterable, Optional, Sequence, Tuple
 
 import gi
 
+# Pin both GTK and GDK to the same major version before importing either
+# namespace. On Ubuntu systems that also provide GTK/GDK 4, importing Gdk
+# without an explicit version can load Gdk 4 first, after which Gtk 3 cannot
+# require Gdk 3 and the application aborts during startup.
+gi.require_version("Gdk", "3.0")
+gi.require_version("GdkPixbuf", "2.0")
 gi.require_version("Gtk", "3.0")
-from gi.repository import GLib, Gtk
+from gi.repository import Gdk, GdkPixbuf, GLib, Gtk
 
+from .geometry import normalized_crop_from_selection
 from .models import CaptureSource, QUALITY_PROFILES, RecordingConfig, RecordingMode
 from .portal import PortalClient, PortalError
+from .portal_policy import portal_request_was_cancelled
+from .pipeline import PortalStream
 from .recorder import Recorder
 from .system_probe import (
     AudioSource,
@@ -20,12 +29,207 @@ from .system_probe import (
 )
 
 
+APP_NAME = "Troika D"
+APP_ID = "io.github.scientifica007.TroikaD"
+APP_ICON_NAME = APP_ID
+
+
+class AreaSelectionWindow(Gtk.Window):
+    MIN_SELECTION = 20
+
+    def __init__(
+        self,
+        monitor_index: int,
+        preview_pixbuf: GdkPixbuf.Pixbuf,
+        selected_cb,
+        cancelled_cb,
+    ):
+        super().__init__(type=Gtk.WindowType.TOPLEVEL)
+        self.preview_pixbuf = preview_pixbuf
+        self.selected_cb = selected_cb
+        self.cancelled_cb = cancelled_cb
+        self.start_point = None
+        self.current_point = None
+        self.dragging = False
+        self._finished = False
+        self._scaled_preview = None
+        self._scaled_size = (0, 0)
+
+        self.set_title("Select recording area")
+        self.set_decorated(False)
+        self.set_keep_above(True)
+        self.set_skip_taskbar_hint(True)
+        self.set_skip_pager_hint(True)
+        self.set_can_focus(True)
+        self.set_accept_focus(True)
+
+        # Render the captured preview on a dedicated DrawingArea instead of
+        # directly on the toplevel Gtk.Window. On the tested Ubuntu/GNOME
+        # stack the window theme could repaint the toplevel after our draw
+        # handler, leaving a fully white selector even though the captured
+        # RGB frame contained real desktop pixels.
+        self.canvas = Gtk.DrawingArea()
+        self.canvas.set_can_focus(True)
+        self.canvas.add_events(
+            Gdk.EventMask.BUTTON_PRESS_MASK
+            | Gdk.EventMask.BUTTON_RELEASE_MASK
+            | Gdk.EventMask.POINTER_MOTION_MASK
+        )
+        self.canvas.connect("draw", self._on_draw)
+        self.canvas.connect("button-press-event", self._on_press)
+        self.canvas.connect("button-release-event", self._on_release)
+        self.canvas.connect("motion-notify-event", self._on_motion)
+        self.add(self.canvas)
+
+        self.add_events(Gdk.EventMask.KEY_PRESS_MASK)
+        self.connect("key-press-event", self._on_key)
+        self.connect("delete-event", self._on_delete)
+
+        screen = self.get_screen()
+        try:
+            self.fullscreen_on_monitor(screen, monitor_index)
+        except Exception:
+            self.fullscreen()
+
+    def _rectangle(self):
+        if self.start_point is None or self.current_point is None:
+            return None
+        x1, y1 = self.start_point
+        x2, y2 = self.current_point
+        return (
+            min(x1, x2),
+            min(y1, y2),
+            abs(x2 - x1),
+            abs(y2 - y1),
+        )
+
+    def _preview_for_allocation(self, width: int, height: int):
+        size = (max(1, width), max(1, height))
+        if self._scaled_preview is None or self._scaled_size != size:
+            self._scaled_preview = self.preview_pixbuf.scale_simple(
+                size[0],
+                size[1],
+                GdkPixbuf.InterpType.BILINEAR,
+            )
+            self._scaled_size = size
+        return self._scaled_preview
+
+    @staticmethod
+    def _paint_preview(cr, pixbuf) -> None:
+        Gdk.cairo_set_source_pixbuf(cr, pixbuf, 0, 0)
+        cr.paint()
+
+    def _on_draw(self, widget, cr):
+        allocation = widget.get_allocation()
+        preview = self._preview_for_allocation(
+            allocation.width,
+            allocation.height,
+        )
+
+        # The selector is deliberately opaque. Its background is a static
+        # frame from the authorized PipeWire stream, so it does not depend
+        # on compositor support for transparent fullscreen GTK windows.
+        self._paint_preview(cr, preview)
+
+        cr.set_source_rgba(0.0, 0.0, 0.0, 0.30)
+        cr.rectangle(0, 0, allocation.width, allocation.height)
+        cr.fill()
+
+        rect = self._rectangle()
+        if rect is not None:
+            x, y, width, height = rect
+            cr.save()
+            cr.rectangle(x, y, width, height)
+            cr.clip()
+            self._paint_preview(cr, preview)
+            cr.restore()
+
+            cr.set_source_rgba(1.0, 1.0, 1.0, 0.95)
+            cr.rectangle(x, y, width, height)
+            cr.set_line_width(2.0)
+            cr.stroke()
+
+        cr.set_source_rgba(0.0, 0.0, 0.0, 0.66)
+        cr.rectangle(18, 14, 520, 42)
+        cr.fill()
+        cr.set_source_rgba(1.0, 1.0, 1.0, 1.0)
+        cr.select_font_face("Sans", 0, 1)
+        cr.set_font_size(20)
+        cr.move_to(30, 42)
+        cr.show_text(
+            "Drag to select the recording area — Esc to cancel"
+        )
+        return False
+
+    def _on_press(self, _widget, event):
+        if event.button != 1:
+            return False
+        self.start_point = (event.x, event.y)
+        self.current_point = self.start_point
+        self.dragging = True
+        self.canvas.queue_draw()
+        return True
+
+    def _on_motion(self, _widget, event):
+        if not self.dragging:
+            return False
+        self.current_point = (event.x, event.y)
+        self.canvas.queue_draw()
+        return True
+
+    def _on_release(self, _widget, event):
+        if event.button != 1 or not self.dragging:
+            return False
+        self.current_point = (event.x, event.y)
+        self.dragging = False
+        rect = self._rectangle()
+        self.canvas.queue_draw()
+        if rect is None:
+            return True
+
+        x, y, width, height = rect
+        if width < self.MIN_SELECTION or height < self.MIN_SELECTION:
+            return True
+
+        allocation = self.canvas.get_allocation()
+        self._finished = True
+        self.hide()
+        self.destroy()
+        self.selected_cb(
+            x,
+            y,
+            width,
+            height,
+            allocation.width,
+            allocation.height,
+        )
+        return True
+
+    def _cancel(self):
+        if self._finished:
+            return
+        self._finished = True
+        self.hide()
+        self.destroy()
+        self.cancelled_cb()
+
+    def _on_key(self, _widget, event):
+        if event.keyval == Gdk.KEY_Escape:
+            self._cancel()
+            return True
+        return False
+
+    def _on_delete(self, *_args):
+        self._cancel()
+        return True
+
 class MainWindow(Gtk.ApplicationWindow):
     DEVICE_POLL_SECONDS = 2
 
     def __init__(self, application: Gtk.Application):
-        super().__init__(application=application, title="Ubuntu Screen Recorder")
+        super().__init__(application=application, title=APP_NAME)
         self.set_default_size(620, 560)
+        self.set_icon_name(APP_ICON_NAME)
         self.set_border_width(18)
 
         self.cap = probe_capabilities()
@@ -33,14 +237,25 @@ class MainWindow(Gtk.ApplicationWindow):
         self.cameras = list_cameras()
         self.recorder = Recorder(self.cap, self.set_status)
         self.portal = PortalClient() if self.cap.has_portal else None
+        if self.portal is not None:
+            (
+                self.screenshot_portal_version,
+                self.screenshot_available_targets,
+            ) = self.portal.screenshot_capabilities()
+        else:
+            self.screenshot_portal_version = 0
+            self.screenshot_available_targets = 0
         self.paused = False
         self._closing_after_recording = False
+        self._area_selecting = False
+        self._area_selector = None
+        self._pending_area_config = None
 
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
         self.add(root)
 
         title = Gtk.Label()
-        title.set_markup("<span size='x-large' weight='bold'>Ubuntu Screen Recorder</span>")
+        title.set_markup(f"<span size='x-large' weight='bold'>{APP_NAME}</span>")
         title.set_xalign(0)
         root.pack_start(title, False, False, 0)
 
@@ -62,18 +277,11 @@ class MainWindow(Gtk.ApplicationWindow):
         ):
             self.mode.append(key, label)
         self.mode.set_active_id("video")
-        self.mode.connect("changed", self._sync_ui)
+        self.mode.connect("changed", self._on_mode_changed)
         self._row(grid, 0, "Mode", self.mode)
 
         self.source = Gtk.ComboBoxText()
-        for key, label in (
-            ("screen", "Full screen"),
-            ("window", "Window"),
-            ("area", "Area"),
-            ("active-window", "Active window"),
-        ):
-            self.source.append(key, label)
-        self.source.set_active_id("screen")
+        self._populate_sources("video")
         self._row(grid, 1, "Source", self.source)
 
         self.quality = Gtk.ComboBoxText()
@@ -154,6 +362,59 @@ class MainWindow(Gtk.ApplicationWindow):
         label.set_xalign(0)
         grid.attach(label, 0, row, 1, 1)
         grid.attach(widget, 1, row, 1, 1)
+
+    def _populate_sources(
+        self,
+        mode: str,
+        preferred_id: Optional[str] = None,
+    ) -> None:
+        if mode == "screenshot":
+            if (
+                self.screenshot_portal_version >= 3
+                and self.screenshot_available_targets
+            ):
+                candidates = (
+                    ("screen", "Full screen", 1),
+                    ("window", "Window", 2),
+                    ("area", "Area", 4),
+                    ("active-window", "Active window", 8),
+                )
+                items = tuple(
+                    (key, label)
+                    for key, label, bit in candidates
+                    if self.screenshot_available_targets & bit
+                )
+            else:
+                items = (
+                    (
+                        "screen",
+                        "Interactive screenshot (system)",
+                    ),
+                )
+        elif mode == "video":
+            # ScreenCast portal exposes monitor/window/virtual,
+            # not a distinct active-window source. Do not present
+            # Active window as if it were semantically different.
+            items = (
+                ("screen", "Full screen"),
+                ("window", "Window"),
+                ("area", "Area"),
+            )
+        else:
+            items = (("screen", "Full screen"),)
+
+        self._replace_combo(
+            self.source,
+            items,
+            preferred_id,
+            "screen",
+        )
+
+    def _on_mode_changed(self, *_args) -> None:
+        mode = self.mode.get_active_id() or "video"
+        preferred = self.source.get_active_id()
+        self._populate_sources(mode, preferred)
+        self._sync_ui()
 
     @staticmethod
     def _make_device_signature(
@@ -252,32 +513,44 @@ class MainWindow(Gtk.ApplicationWindow):
     def _sync_ui(self, *_args) -> None:
         mode = self.mode.get_active_id() or "video"
         recording = self.recorder.active
+        preparing_area = (
+            self._area_selecting or self.recorder.preparing
+        )
+        locked = recording or preparing_area
         is_video = mode == "video"
         is_audio = mode == "audio"
         is_shot = mode == "screenshot"
 
-        self.source.set_sensitive(not recording and not is_audio)
-        self.quality.set_sensitive(not recording and is_video)
-        self.fps.set_sensitive(not recording and is_video)
-        self.mic_check.set_sensitive(not recording and not is_shot)
-        self.system_check.set_sensitive(not recording and not is_shot)
+        self.source.set_sensitive(not locked and not is_audio)
+        self.quality.set_sensitive(not locked and is_video)
+        self.fps.set_sensitive(not locked and is_video)
+        self.mic_check.set_sensitive(not locked and not is_shot)
+        self.system_check.set_sensitive(not locked and not is_shot)
         self.mic.set_sensitive(
-            not recording and self.mic_check.get_active() and not is_shot
+            not locked and self.mic_check.get_active() and not is_shot
         )
         self.system_audio.set_sensitive(
-            not recording and self.system_check.get_active() and not is_shot
+            not locked and self.system_check.get_active() and not is_shot
         )
         self.camera_check.set_sensitive(
-            not recording and is_video and bool(self.cameras)
+            not locked and is_video and bool(self.cameras)
         )
         self.camera.set_sensitive(
-            not recording
+            not locked
             and is_video
             and self.camera_check.get_active()
             and bool(self.cameras)
         )
-        self.pointer.set_sensitive(not recording and is_video)
+        self.pointer.set_sensitive(not locked and is_video)
+        legacy_screenshot = (
+            is_shot
+            and self.screenshot_portal_version < 3
+        )
+        self.output.set_sensitive(
+            not locked and not legacy_screenshot
+        )
         self.pause_btn.set_sensitive(recording)
+        self.action.set_sensitive(not preparing_area or recording)
 
         if recording:
             self.action.set_label("Stop recording")
@@ -329,39 +602,269 @@ class MainWindow(Gtk.ApplicationWindow):
         if config.mode == RecordingMode.SCREENSHOT:
             self._take_screenshot(config)
             return
+
+        if (
+            config.mode == RecordingMode.VIDEO
+            and config.source == CaptureSource.AREA
+            and self.cap.session_type == "wayland"
+        ):
+            self._begin_area_capture(config)
+            return
+
         try:
             config.validate()
-            config.output_dir.mkdir(parents=True, exist_ok=True)
-            stamp = GLib.DateTime.new_now_local().format("%Y-%m-%d_%H-%M-%S")
-            if config.mode == RecordingMode.AUDIO:
-                path = config.output_dir / f"Audio_{stamp}.ogg"
-            else:
-                ext = "mp4" if self.cap.has_x264enc else "webm"
-                path = config.output_dir / f"Recording_{stamp}.{ext}"
+            path = self._recording_output_path(config)
             self.recorder.start(config, path)
             self.paused = False
             self.pause_btn.set_label("Pause")
         except Exception as exc:
+            if (
+                isinstance(exc, PortalError)
+                and portal_request_was_cancelled(exc.code)
+            ):
+                self.set_status("Screen selection cancelled")
+            else:
+                self._show_error(str(exc))
+        self._sync_ui()
+
+    def _recording_output_path(
+        self,
+        config: RecordingConfig,
+    ) -> Path:
+        config.output_dir.mkdir(parents=True, exist_ok=True)
+        stamp = GLib.DateTime.new_now_local().format(
+            "%Y-%m-%d_%H-%M-%S"
+        )
+        if config.mode == RecordingMode.AUDIO:
+            return config.output_dir / f"Audio_{stamp}.ogg"
+        ext = "mp4" if self.cap.has_x264enc else "webm"
+        return config.output_dir / f"Recording_{stamp}.{ext}"
+
+    def _monitor_for_stream(
+        self,
+        stream: PortalStream,
+    ) -> int:
+        screen = self.get_screen()
+        count = screen.get_n_monitors()
+        if count <= 1:
+            return 0
+
+        if stream.position is not None:
+            px, py = stream.position
+            if stream.size is not None:
+                sw, sh = stream.size
+                px += sw // 2
+                py += sh // 2
+
+            for index in range(count):
+                geometry = screen.get_monitor_geometry(index)
+                if (
+                    geometry.x <= px < geometry.x + geometry.width
+                    and geometry.y <= py < geometry.y + geometry.height
+                ):
+                    return index
+
+        window = self.get_window()
+        if window is not None:
+            try:
+                return screen.get_monitor_at_window(window)
+            except Exception:
+                pass
+
+        primary = screen.get_primary_monitor()
+        return primary if primary >= 0 else 0
+
+    def _begin_area_capture(
+        self,
+        config: RecordingConfig,
+    ) -> None:
+        self._area_selecting = True
+        self._pending_area_config = config
+        self._sync_ui()
+        try:
+            config.validate()
+            stream = self.recorder.prepare_area_capture(config)
+            monitor = self._monitor_for_stream(stream)
+            self.set_status("Preparing area preview…")
+            self.hide()
+            # Let the compositor remove this window from the monitor before
+            # grabbing the static preview frame.
+            GLib.timeout_add(
+                300,
+                self._show_area_selector,
+                stream,
+                monitor,
+            )
+        except Exception as exc:
+            self._area_selecting = False
+            self._pending_area_config = None
+            self._area_selector = None
+            if self.recorder.preparing:
+                self.recorder.cancel_prepared_capture()
+            self.show_all()
+            self.present()
+            if (
+                isinstance(exc, PortalError)
+                and portal_request_was_cancelled(exc.code)
+            ):
+                self.set_status("Screen selection cancelled")
+            else:
+                self._show_error(str(exc))
+            self._sync_ui()
+
+    def _show_area_selector(
+        self,
+        stream: PortalStream,
+        monitor: int,
+    ) -> bool:
+        try:
+            frame = self.recorder.capture_area_preview(stream)
+            bytes_value = GLib.Bytes.new(frame.data)
+            pixbuf = GdkPixbuf.Pixbuf.new_from_bytes(
+                bytes_value,
+                GdkPixbuf.Colorspace.RGB,
+                False,
+                8,
+                frame.width,
+                frame.height,
+                frame.rowstride,
+            )
+            self.set_status(
+                "Drag to select the recording area — Esc cancels"
+            )
+            selector = AreaSelectionWindow(
+                monitor,
+                pixbuf,
+                self._on_area_selected,
+                self._on_area_cancelled,
+            )
+            self._area_selector = selector
+            selector.show_all()
+            selector.present()
+            selector.canvas.grab_focus()
+        except Exception as exc:
+            self._area_selecting = False
+            self._pending_area_config = None
+            self._area_selector = None
+            if self.recorder.preparing:
+                self.recorder.cancel_prepared_capture()
+            self.show_all()
+            self.present()
             self._show_error(str(exc))
+            self._sync_ui()
+        return False
+
+    def _on_area_selected(
+        self,
+        x: float,
+        y: float,
+        width: float,
+        height: float,
+        canvas_width: int,
+        canvas_height: int,
+    ) -> None:
+        config = self._pending_area_config
+        self._area_selector = None
+        if config is None:
+            self._area_selecting = False
+            if self.recorder.preparing:
+                self.recorder.cancel_prepared_capture()
+            self.show_all()
+            self.present()
+            return
+
+        try:
+            config.crop = normalized_crop_from_selection(
+                x,
+                y,
+                width,
+                height,
+                canvas_width,
+                canvas_height,
+            )
+            path = self._recording_output_path(config)
+            self._area_selecting = False
+            self._pending_area_config = None
+            self.recorder.start(config, path)
+            self.paused = False
+            self.pause_btn.set_label("Pause")
+            self.show_all()
+            self.present()
+        except Exception as exc:
+            self._area_selecting = False
+            self._pending_area_config = None
+            if self.recorder.preparing:
+                self.recorder.cancel_prepared_capture()
+            self.show_all()
+            self.present()
+            self._show_error(str(exc))
+        self._sync_ui()
+
+    def _on_area_cancelled(self) -> None:
+        self._area_selector = None
+        self._area_selecting = False
+        self._pending_area_config = None
+        if self.recorder.preparing:
+            self.recorder.cancel_prepared_capture()
+        self.show_all()
+        self.present()
+        self.set_status("Area selection cancelled")
         self._sync_ui()
 
     def _take_screenshot(self, config: RecordingConfig) -> None:
         if self.portal is None:
             self._show_error("XDG Screenshot Portal is unavailable")
             return
+
+        # Hide the recorder itself before asking the compositor for a
+        # screenshot. This makes full-screen screenshots practical and
+        # prevents our own UI from being forced into the captured image.
+        self.set_status("Preparing screenshot…")
+        self.hide()
+        GLib.timeout_add(
+            400,
+            self._perform_screenshot,
+            config,
+        )
+
+    def _perform_screenshot(
+        self,
+        config: RecordingConfig,
+    ) -> bool:
         targets = {
             CaptureSource.SCREEN: 1,
             CaptureSource.WINDOW: 2,
             CaptureSource.AREA: 4,
             CaptureSource.ACTIVE_WINDOW: 8,
         }
+        path = None
+        error = None
         try:
-            path = self.portal.screenshot(
-                targets[config.source], config.output_dir
+            config.output_dir.mkdir(
+                parents=True,
+                exist_ok=True,
             )
-            self.set_status(f"Screenshot saved: {path}")
-        except (PortalError, Exception) as exc:
-            self._show_error(str(exc))
+            path = self.portal.screenshot(
+                targets[config.source],
+                config.output_dir,
+            )
+        except Exception as exc:
+            error = exc
+        finally:
+            self.show_all()
+            self.present()
+
+        if error is not None:
+            self._show_error(str(error))
+        elif path is not None:
+            self.set_status(
+                f"Screenshot saved: {path}"
+            )
+        else:
+            self.set_status(
+                "Screenshot handled by the system tool"
+            )
+        return False
 
     def _on_pause(self, _button) -> None:
         if not self.recorder.active:
@@ -381,7 +884,7 @@ class MainWindow(Gtk.ApplicationWindow):
             flags=0,
             message_type=Gtk.MessageType.ERROR,
             buttons=Gtk.ButtonsType.CLOSE,
-            text="Ubuntu Screen Recorder",
+            text=APP_NAME,
         )
         dialog.format_secondary_text(text)
         dialog.run()
@@ -421,7 +924,7 @@ class MainWindow(Gtk.ApplicationWindow):
 class ScreenRecorderApplication(Gtk.Application):
     def __init__(self):
         super().__init__(
-            application_id="io.github.scientifica007.UbuntuScreenRecorder"
+            application_id=APP_ID
         )
 
     def do_activate(self):

@@ -1,7 +1,9 @@
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
+
+from .geometry import NormalizedCrop
 
 
 class RecordingMode(str, Enum):
@@ -27,7 +29,10 @@ class QualityProfile:
 
 
 QUALITY_PROFILES = {
-    "economy": QualityProfile("economy", "Economy", 75, 1800, "ultrafast"),
+    # Resolution scaling is not yet implemented safely for dynamic
+    # Wayland streams, so Economy currently reduces encoder cost and
+    # bitrate without pretending to resize the captured frame.
+    "economy": QualityProfile("economy", "Economy", 100, 1800, "ultrafast"),
     "balanced": QualityProfile("balanced", "Balanced", 100, 4500, "veryfast"),
     "high": QualityProfile("high", "High", 100, 8000, "fast"),
 }
@@ -47,6 +52,7 @@ class RecordingConfig:
     camera_device: Optional[str] = None
     show_pointer: bool = True
     output_dir: Path = Path.home() / "Videos"
+    crop: Optional[NormalizedCrop] = None
 
     def validate(self) -> None:
         if self.fps not in (15, 30, 60):
