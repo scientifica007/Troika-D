@@ -58,6 +58,21 @@ The repository also contains:
 - `RESPONSIBLE_USE.md` — non-binding project values;
 - `TRADEMARKS.md` — guidance for the Troika D name, logo, and official identity.
 
+## Known limitation discovered in field testing
+
+**PERF-002 — Window + Webcam overlay:** on the primary Ubuntu/Wayland low-resource machine, Window recording with Webcam enabled at Balanced 15 FPS or 30 FPS can show green corruption and severe stutter in the recorded screen stream.
+
+Comparative field testing showed:
+
+- Window + Webcam OFF: acceptable at 15 and 30 FPS;
+- Window + Webcam ON: rejected at 15 and 30 FPS;
+- Area + Webcam ON: accepted at 30 FPS;
+- webcam image and microphone/system audio remained good even in the failed Window runs.
+
+Beta workaround: disable Webcam for Window capture, or use Area/Full Screen when Webcam is required.
+
+Tracked as **PERF-002 / GitHub issue #22**.
+
 ## Beta status
 
 This release is intentionally marked **beta**.

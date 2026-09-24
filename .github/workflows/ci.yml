@@ -18,7 +18,7 @@ jobs:
       - name: Install native GI smoke-test dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-gi python3-cairo gir1.2-gtk-3.0 gir1.2-gstreamer-1.0 desktop-file-utils appstream
+          sudo apt-get install -y python3-gi python3-cairo gir1.2-gtk-3.0 gir1.2-gstreamer-1.0 desktop-file-utils appstream lintian
       - name: Native GTK/GDK import smoke test
         run: |
           PYTHONPATH=src /usr/bin/python3 -c "import ubuntu_screen_recorder.app"
@@ -53,6 +53,30 @@ jobs:
               raise SystemExit(f"Unexpected release artifacts: wheels={wheels}, sdists={sdists}")
           print("Release artifact build: PASS")
           PY
+      - name: Build and verify Debian package
+        run: |
+          bash -n scripts/build-deb.sh
+          bash -n scripts/verify-deb.sh
+          DEB_PATH="$(bash scripts/build-deb.sh)"
+          echo "DEB_PATH=$DEB_PATH" >> "$GITHUB_ENV"
+          bash scripts/verify-deb.sh "$DEB_PATH"
+          dpkg-deb --field "$DEB_PATH" Package Version Architecture Depends
+          lintian --fail-on error "$DEB_PATH"
+      - name: Install Debian package with APT
+        run: |
+          sudo apt-get install -y --no-install-recommends "$DEB_PATH"
+          test "$(command -v troika-d)" = "/usr/bin/troika-d"
+          test -f /usr/share/applications/io.github.scientifica007.TroikaD.desktop
+          test -f /usr/share/icons/hicolor/scalable/apps/io.github.scientifica007.TroikaD.svg
+          PYTHONPATH=/usr/lib/troika-d /usr/bin/python3 -c "import ubuntu_screen_recorder.app"
+          sudo apt-get remove -y troika-d
+      - name: Upload Debian package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: troika-d-deb-beta1
+          path: dist-deb/*.deb
+          if-no-files-found: error
+          retention-days: 30
       - name: Syntax check
         run: |
           python -m compileall -q src tests

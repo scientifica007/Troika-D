@@ -102,6 +102,7 @@ This baseline is a recovery point for the known-good implementation validated on
 - [x] screenshot portal v2 simplified interactive mode after code=2 compatibility fix
 - [x] verify portal-v2 screenshots no longer duplicate into Videos after storage-ownership fix
 - [x] portal selection cancel is treated as normal UX flow for Full Screen and Window
+- [ ] investigate PERF-002: Window capture + Webcam overlay causes green corruption and severe stutter on the primary Wayland machine; Window without webcam and Area with webcam pass
 - [ ] investigate PORTAL-001: transient duplicate cursor after GNOME external screen-share stop
 - [ ] non-blocking startup/error handling
 - [ ] countdown
@@ -138,6 +139,7 @@ Validated in real use:
 Known non-blocking defects/limitations remain documented rather than erased:
 
 - Window capture motion can be substantially worse than Full Screen/Area for moving content.
+- Window + Webcam overlay is currently a known rejected combination on the primary machine at Balanced 15/30 FPS (PERF-002); disable webcam for Window capture or use Area/Full Screen when webcam is required.
 - GNOME external screen-share stop can temporarily leave a duplicate pointer artifact.
 - some runs can still hit bounded finalization timeout while preserving a playable robust MP4.
 - X11 coverage is not yet validated.
@@ -163,5 +165,5 @@ On this specific tested low-resource machine, the user reports the current appli
 - [ ] desktop notifications
 - [ ] global shortcuts where supported
 - [ ] Arabic / English / French translations
-- [ ] Debian package
-- [ ] release workflow
+- [x] Debian package — native `.deb` build/install/remove path validated in CI and accepted on the primary field machine with PERF-002 documented as a non-blocking runtime limitation
+- [x] release workflow — first public pre-release `v0.1.0-beta.1` published and verified
