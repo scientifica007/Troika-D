@@ -89,6 +89,16 @@ troika-d
 
 The internal Python module remains `ubuntu_screen_recorder` during the rebrand validation cycle to avoid unnecessary runtime risk. It can be migrated separately after the desktop/package identity has passed regression testing.
 
+## License and project values
+
+Troika D is free and open-source software licensed under the **GNU General Public License v3.0 or later (GPL-3.0-or-later)**.
+
+- See [LICENSE](LICENSE) for the software license.
+- See [RESPONSIBLE_USE.md](RESPONSIBLE_USE.md) for the project's non-binding responsible-use statement.
+- See [TRADEMARKS.md](TRADEMARKS.md) for guidance on the Troika D name, logo, and official identity.
+
+The Responsible Use statement expresses project values; it is **not** an additional restriction on the GPL license.
+
 ## Architecture
 
 The UI does not own capture logic. Device discovery, portal handling, recording orchestration, and GStreamer pipeline construction are separate layers so the interface and backends can evolve independently.
