@@ -17,6 +17,10 @@ mkdir -p   "$CONTROL_DIR"   "$PKG_ROOT/usr/bin"   "$PKG_ROOT/usr/lib/troika-d"  
 
 cp -a "$ROOT_DIR/src/ubuntu_screen_recorder"   "$PKG_ROOT/usr/lib/troika-d/ubuntu_screen_recorder"
 
+find "$PKG_ROOT/usr/lib/troika-d" -type d -name '__pycache__' -prune -exec rm -rf {} +
+find "$PKG_ROOT/usr/lib/troika-d" -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete
+
+
 install -m 0644   "$ROOT_DIR/data/$APP_ID.desktop"   "$PKG_ROOT/usr/share/applications/$APP_ID.desktop"
 
 install -m 0644   "$ROOT_DIR/data/$APP_ID.metainfo.xml"   "$PKG_ROOT/usr/share/metainfo/$APP_ID.metainfo.xml"
