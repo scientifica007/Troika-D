@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Troika D
+Comment=Lightweight screen capture for Linux
+Exec=troika-d
+Icon=io.github.scientifica007.TroikaD
+Terminal=false
+StartupNotify=true
+StartupWMClass=io.github.scientifica007.TroikaD
+Categories=AudioVideo;Recorder;Graphics;Utility;
+Keywords=screen;record;recorder;capture;screenshot;audio;video;wayland;x11;
