@@ -35,6 +35,32 @@ sudo apt install -y \
 
 Wayland recording also requires a working PipeWire + desktop portal backend.
 
+## Install for the current user
+
+Troika D includes a reversible user-local desktop installer. It does not require `sudo` and does not modify system directories.
+
+```bash
+bash scripts/install-user.sh
+```
+
+After installation, open the application menu and search for **Troika D**. You can also launch it with:
+
+```bash
+~/.local/bin/troika-d
+```
+
+Verify the installed desktop files:
+
+```bash
+bash scripts/verify-user-install.sh
+```
+
+Remove the user-local installation completely:
+
+```bash
+bash scripts/uninstall-user.sh
+```
+
 ## Run from source
 
 Clone the Troika D repository and run from source:
