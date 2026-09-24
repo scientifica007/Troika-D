@@ -64,7 +64,7 @@ jobs:
           lintian --fail-on error "$DEB_PATH"
       - name: Install Debian package with APT
         run: |
-          sudo apt-get install -y --no-install-recommends "./$DEB_PATH"
+          sudo apt-get install -y --no-install-recommends "$DEB_PATH"
           test "$(command -v troika-d)" = "/usr/bin/troika-d"
           test -f /usr/share/applications/io.github.scientifica007.TroikaD.desktop
           test -f /usr/share/icons/hicolor/scalable/apps/io.github.scientifica007.TroikaD.svg
