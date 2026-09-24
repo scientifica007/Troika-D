@@ -22,6 +22,16 @@ jobs:
       - name: Native GTK/GDK import smoke test
         run: |
           PYTHONPATH=src /usr/bin/python3 -c "import ubuntu_screen_recorder.app"
+      - name: User-local desktop install smoke test
+        run: |
+          bash -n scripts/install-user.sh
+          bash -n scripts/uninstall-user.sh
+          bash -n scripts/verify-user-install.sh
+          export HOME="$RUNNER_TEMP/troika-home"
+          mkdir -p "$HOME"
+          bash scripts/install-user.sh
+          bash scripts/verify-user-install.sh
+          bash scripts/uninstall-user.sh
       - name: Syntax check
         run: |
           python -m compileall -q src tests
