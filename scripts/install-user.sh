@@ -22,12 +22,16 @@ if [[ ! -d "$ROOT_DIR/src/ubuntu_screen_recorder" ]]; then
   exit 1
 fi
 
-if ! command -v python3 >/dev/null 2>&1; then
+PYTHON_BIN="${TROIKA_D_PYTHON:-/usr/bin/python3}"
+if [[ ! -x "$PYTHON_BIN" ]]; then
+  PYTHON_BIN="$(command -v python3 || true)"
+fi
+if [[ -z "$PYTHON_BIN" || ! -x "$PYTHON_BIN" ]]; then
   echo "python3 is required." >&2
   exit 1
 fi
 
-python3 - <<'PY'
+"$PYTHON_BIN" - <<'PY'
 try:
     import gi
     gi.require_version("Gtk", "3.0")
