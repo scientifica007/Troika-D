@@ -28,6 +28,32 @@ install -m 0644 "$ROOT_DIR/RESPONSIBLE_USE.md" "$PKG_ROOT/usr/share/doc/troika-d
 install -m 0644 "$ROOT_DIR/TRADEMARKS.md" "$PKG_ROOT/usr/share/doc/troika-d/TRADEMARKS.md"
 install -m 0644 "$ROOT_DIR/CHANGELOG.md" "$PKG_ROOT/usr/share/doc/troika-d/CHANGELOG.md"
 
+cat > "$PKG_ROOT/usr/share/doc/troika-d/copyright" <<'EOF'
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: Troika D
+Source: https://github.com/scientifica007/Troika-D
+
+Files: *
+Copyright: 2026 Scientifica
+License: GPL-3+
+ Troika D is free software: you can redistribute it and/or modify it
+ under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+ .
+ On Debian systems, the complete text of the GNU General Public
+ License version 3 can be found in /usr/share/common-licenses/GPL-3.
+EOF
+
+cat > "$STAGE/changelog.Debian" <<EOF
+troika-d ($DEB_VERSION) unstable; urgency=medium
+
+  * First public beta Debian/Ubuntu package for Troika D.
+
+ -- Scientifica <scientifica007@users.noreply.github.com>  Thu, 24 Sep 2026 00:00:00 +0000
+EOF
+gzip -n -9 -c "$STAGE/changelog.Debian" >   "$PKG_ROOT/usr/share/doc/troika-d/changelog.Debian.gz"
+
 cat > "$PKG_ROOT/usr/bin/troika-d" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
